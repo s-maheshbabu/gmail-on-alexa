@@ -1,0 +1,17 @@
+{
+  "name": "gmail-on-alexa",
+  "version": "1.0.0",
+  "description": "A skill to teach Alexa Gmail",
+  "main": "index.js",
+  "dependencies": {
+    "moment": "2.8.4",
+    "googleapis": "2.0.2"
+  },
+  "devDependencies": {
+    "grunt": "0.4.*",
+    "grunt-aws-lambda": "0.*.*",
+    "aws-sdk": "^2.2.18"
+  },
+  "author": "Mahesh Sabbavarapu",
+  "license": "ISC"
+}

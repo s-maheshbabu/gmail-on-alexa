@@ -1,0 +1,17 @@
+{
+  "session": {
+    "sessionId": "SessionId.ec23586c-77a7-4d5e-8595-89b4358c0a2c",
+    "application": {
+      "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
+    },
+    "user": {
+      "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
+    },
+    "new": true
+  },
+  "request": {
+    "type": "LaunchRequest",
+    "requestId": "EdwRequestId.378c1f26-74f7-413f-b3ed-d7339930608a",
+    "timestamp": 1448350945106
+  }
+}
