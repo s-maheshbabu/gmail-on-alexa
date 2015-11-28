@@ -104,9 +104,9 @@ function getWelcomeResponse(session, callback) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
     var sessionAttributes = {};
-    var cardTitle = "Welcome to Gmail on Alexa.";
+    var cardTitle = "Welcome to Gmail on Alexa. ";
     var cardOutput = "";
-    var speechOutput = "Hello, welcome to Gmail on Alexa.";
+    var speechOutput = "Hello, welcome to Gmail on Alexa. ";
     // If the user either does not reply to the welcome message or says something that is not
     // understood, they will be prompted again with this text.
     var repromptText = "Reprompt text";
@@ -123,15 +123,15 @@ function getWelcomeResponse(session, callback) {
             // Fail here. 
         } else {
             if (isEmptyObject(tokens)) {
-                console.log('No auth tokens found. New user.');
+                console.log('No auth tokens found. New user. ');
 
                 var url = oauth2Client.generateAuthUrl({
                     access_type: 'offline', // will return a refresh token
                     scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
                 });
                 url = url + '&state=' + customerId;
-                speechOutput = "Welcome to Gmail on Alexa. Please link your Gmail account using your companion app.";
-                cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa.";
+                speechOutput = "Welcome to Gmail on Alexa. Please link your Gmail account using your companion app. ";
+                cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
                 callback(sessionAttributes,
@@ -140,7 +140,7 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials(tokens.Item.AUTH_TOKENS);
-                gmail.users.labels.list({ userId: 'me', auth: oauth2Client }, function (err, response) {
+                gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/name, labels/id'] }, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch labels for the user: ' + err);
                         // Fail here.
@@ -149,14 +149,14 @@ function getWelcomeResponse(session, callback) {
                         var labels = response.labels;
                         if (labels.length == 0) {
                             console.log('No labels found.');
-                            speechOutput += 'You do not have labels in your Gmail account.'
+                            speechOutput += 'You do not have labels in your Gmail account. '
                         } else {
-                            speechOutput += 'Here are your labels.'
-                            console.log('Labels:');
+                            speechOutput += 'Here are your labels. '
+                            console.log('Labels: ');
                             for (var i = 0; i < labels.length; i++) {
                                 var label = labels[i];
-                                console.log('- %s', label.name);
-                                speechOutput += label.name + '.';
+                                console.log('%s - %s', label.name, label.id);
+                                speechOutput += label.name + '. ';
                             }
 
                             callback(sessionAttributes,
