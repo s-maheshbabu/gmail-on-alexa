@@ -1,3 +1,5 @@
+var async = require("async");
+
 var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
 var dynamodb = new AWS.DynamoDB.DocumentClient();
@@ -140,27 +142,47 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials(tokens.Item.AUTH_TOKENS);
-                gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/name, labels/id'] }, function (err, response) {
+                gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch labels for the user: ' + err);
                         // Fail here.
                     }
                     else {
-                        var labels = response.labels;
+                        var labels = filterLabels(response.labels);
                         if (labels.length == 0) {
                             console.log('No labels found.');
                             speechOutput += 'You do not have labels in your Gmail account. '
                         } else {
-                            speechOutput += 'Here are your labels. '
-                            console.log('Labels: ');
-                            for (var i = 0; i < labels.length; i++) {
-                                var label = labels[i];
-                                console.log('%s - %s', label.name, label.id);
-                                speechOutput += label.name + '. ';
-                            }
+                            var asyncTasks = [];
+                            labels.forEach(function (label) {
+                                asyncTasks.push(function (callback) {
+                                    gmail.users.labels.get({ userId: 'me', id: label.id, auth: oauth2Client, fields: ['name, id, messagesUnread'] }, function (err, r) {
+                                        callback(null, r);
+                                    });
+                                });
+                            });
 
-                            callback(sessionAttributes,
-                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                            async.parallel(asyncTasks, function (err, labelsWithDetails) {
+                                if (err) {
+                                    console.log("Error fetching label details.");
+                                    // Fail here
+                                }
+                                else {
+                                    speechOutput += 'You have '
+                                    console.log('Labels: ');
+                                    for (var i = 0; i < labelsWithDetails.length; i++) {
+                                        var label = labelsWithDetails[i];
+                                        console.log('%s (%s) - %s', label.name, label.id, label.messagesUnread);
+                                        if (label.messagesUnread <= 0) {
+                                            continue;
+                                        }
+                                        speechOutput += label.messagesUnread + ' unread message in ' + label.name + '. ';
+                                    }
+
+                                    callback(sessionAttributes,
+                                        buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                                }
+                            });
                         }
                     }
                 });
@@ -199,6 +221,7 @@ function buildResponse(sessionAttributes, speechletResponse) {
     };
 }
 
+// --------------- Utility Methods -----------------------
 function isEmptyObject(obj) {
     for (var key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -207,3 +230,24 @@ function isEmptyObject(obj) {
     }
     return true;
 }
+
+/**
+ * Remove irrelavant labels like TRASH, SENT etc. 
+ */
+function filterLabels(labels) {
+    var processedLables = [];
+    if (labels.length == 0) {
+        console.log('No labels found.');
+    } else {
+        for (var i = 0; i < labels.length; i++) {
+            var label = labels[i];
+            if (IRRELAVANT_LABELS.indexOf(label.id) <= -1) {
+                processedLables.push(label);
+            }
+        }
+    }
+
+    return processedLables;
+}
+
+var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CHAT"];
