@@ -176,7 +176,7 @@ function getWelcomeResponse(session, callback) {
                                         if (label.threadsUnread <= 0) {
                                             continue;
                                         }
-                                        speechOutput += label.threadsUnread + ' unread ' + (label.threadsUnread === 1 ? 'conversation' : 'conversations') + ' in ' + label.name + '. ';
+                                        speechOutput += label.threadsUnread + ' unread ' + (label.threadsUnread === 1 ? 'conversation' : 'conversations') + ' in ' + friendlyNameForLabels(label) + '. ';
                                     }
 
                                     callback(sessionAttributes,
@@ -230,6 +230,13 @@ function isEmptyObject(obj) {
     }
     return true;
 }
+
+// --------------- Gmail specific utilities -----------------------
+var INBOX_LABEL = "INBOX";
+var CHAT_LABEL = "CHAT";
+var DRAFT_LABEL = "DRAFT";
+var DEFAULT_LABELS = ["CATEGORY_UPDATES", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
+var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CATEGORY_PERSONAL"];
 
 /**
  * Remove irrelavant labels like TRASH, SENT etc. 
@@ -315,8 +322,25 @@ function sortLabelsListByName(labelsList) {
   });
 }
 
-var INBOX_LABEL = "INBOX";
-var CHAT_LABEL = "CHAT";
-var DRAFT_LABEL = "DRAFT";
-var DEFAULT_LABELS = ["CATEGORY_UPDATES", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
-var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CATEGORY_PERSONAL"];
+/**
+ * Provides a user friendly name that can replace the default
+ * name for a label. We suggest user friendly names only for system labels
+ * (which are created by Gmail) as against user labels.
+ */
+function friendlyNameForLabels(label) {
+    if (DEFAULT_LABELS.indexOf(label.id) > -1) {
+        if("CATEGORY_UPDATES" === label.id) {
+            return "Updates";
+        }
+        else if("CATEGORY_PROMOTIONS" === label.id) {
+            return "Promotions";
+        }
+        else if("CATEGORY_SOCIAL" === label.id) {
+            return "Social Media";
+        }
+        else if("CATEGORY_FORUMS" === label.id) {
+            return "Online Forums";
+        }
+    }
+    return label.name;
+}
