@@ -1,3 +1,4 @@
+var util = require('util');
 var async = require("async");
 
 var AWS = require('aws-sdk');
@@ -144,8 +145,18 @@ function getWelcomeResponse(session, callback) {
                 oauth2Client.setCredentials(tokens.Item.AUTH_TOKENS);
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
-                        console.log('Failed to fetch labels for the user: ' + err);
-                        // Fail here.
+                        console.log('Failed to fetch labels for the user: ' + util.inspect(err, false, null));
+                        if(err.code == 400 || err.code == 403) {
+                            speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                            repromptText = "";
+                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                            callback(sessionAttributes,
+                                        buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                        }
+                        if(err.code == 402) {
+                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                        }
+                        // Generic error message.
                     }
                     else {
                         var labels = filterLabels(response.labels);
@@ -165,7 +176,17 @@ function getWelcomeResponse(session, callback) {
                             async.parallel(asyncTasks, function (err, labelsWithDetails) {
                                 if (err) {
                                     console.log("Error fetching label details.");
-                                    // Fail here
+                                    if(err.code == 400 || err.code == 403) {
+                                        speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                                        repromptText = "";
+                                        cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                                        callback(sessionAttributes,
+                                                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                                    }
+                                    if(err.code == 402) {
+                                        // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                                    }
+                                    // Generic error message.
                                 }
                                 else {
                                     var orderedLabels = reorderLabels(labelsWithDetails);
