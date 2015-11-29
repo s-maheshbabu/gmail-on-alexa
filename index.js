@@ -132,8 +132,8 @@ function getWelcomeResponse(session, callback) {
                     access_type: 'offline', // will return a refresh token
                     scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
                 });
-                url = url + '&state=' + customerId;
-                speechOutput = "Welcome to Gmail on Alexa. Please link your Gmail account using your companion app. ";
+                url = url + '&state=' + customerId + '&approval_prompt=force';
+                speechOutput = "Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app. ";
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
@@ -142,7 +142,7 @@ function getWelcomeResponse(session, callback) {
             }
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
-                oauth2Client.setCredentials(tokens.Item.AUTH_TOKENS);
+                oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch labels for the user: ' + util.inspect(err, false, null));

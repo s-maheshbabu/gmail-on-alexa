@@ -9,7 +9,6 @@ var gmail = google.gmail('v1');
 var CLIENT_ID = '175453001188-nkr6j5ik5kc5f2rg8ns6emju48tojnsp.apps.googleusercontent.com';
 var CLIENT_SECRET = 'JM2iWplt5_zC6iHPInmH3VYb';
 var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/mydemoresource';
-// var REDIRECT_URL = 'https://example.com/Prod/mydemoresource';
 
 var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
 
@@ -42,11 +41,19 @@ exports.handler = function (event, context) {
     }
 
     function persistTokens(tokens, customerId, callback) {
+        // The life time of an access token is pretty short (an hour usually) and so persisting the
+        // access token actively hurts the performance because oauth_client will first try to use the
+        // access token, fail (most of the times except may be the very first usage of the app) and then
+        // fetch a fresh access token.
+        // Instead, if we simply avoid storing the access token, the client will fetch a new access token
+        // right away and use it for the current dialog session. This will also save us dynamodb read throughput.
+        // For that reason, we only persist refresh_token.
+
         dynamodb.put({
             "TableName": AUTH_TABLE_NAME,
             "Item": {
                 "CID": customerId,
-                "AUTH_TOKENS": tokens
+                "REFRESH_TOKEN": tokens.refresh_token
             }
         }, function (err, tokens) {
             if (err) {
@@ -58,26 +65,4 @@ exports.handler = function (event, context) {
             }
         });
     }
-
-    // retrieve an access token 
-    function listLabels(oauth2Client) {    
-        // retrieve user profile
-        gmail.users.labels.list({ userId: 's.maheshbabu@gmail.com', auth: oauth2Client }, function (err, response) {
-            if (err) {
-                console.log('An error occured trying to fetch Gmail labels', err); return;
-                context.succeed('FAILURE');
-            }
-            var labels = response.labels;
-            if (labels.length == 0) {
-                console.log('No labels found.');
-            } else {
-                console.log('Labels:');
-                for (var i = 0; i < labels.length; i++) {
-                    var label = labels[i];
-                    console.log('- %s', label.name);
-                }
-            }
-            context.succeed('SUCCESS');
-        });
-    };
 };
