@@ -176,7 +176,7 @@ function getWelcomeResponse(session, callback) {
                                         if (label.threadsUnread <= 0) {
                                             continue;
                                         }
-                                        speechOutput += label.threadsUnread + ' unread conversations in ' + label.name + '. ';
+                                        speechOutput += label.threadsUnread + ' unread ' + (label.threadsUnread === 1 ? 'conversation' : 'conversations') + ' in ' + label.name + '. ';
                                     }
 
                                     callback(sessionAttributes,
