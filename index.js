@@ -156,7 +156,7 @@ function getWelcomeResponse(session, callback) {
                             var asyncTasks = [];
                             labels.forEach(function (label) {
                                 asyncTasks.push(function (callback) {
-                                    gmail.users.labels.get({ userId: 'me', id: label.id, auth: oauth2Client, fields: ['name, id, messagesUnread'] }, function (err, r) {
+                                    gmail.users.labels.get({ userId: 'me', id: label.id, auth: oauth2Client, fields: ['name, id, threadsUnread'] }, function (err, r) {
                                         callback(null, r);
                                     });
                                 });
@@ -168,15 +168,15 @@ function getWelcomeResponse(session, callback) {
                                     // Fail here
                                 }
                                 else {
+                                    var orderedLabels = reorderLabels(labelsWithDetails);
                                     speechOutput += 'You have '
                                     console.log('Labels: ');
-                                    for (var i = 0; i < labelsWithDetails.length; i++) {
-                                        var label = labelsWithDetails[i];
-                                        console.log('%s (%s) - %s', label.name, label.id, label.messagesUnread);
-                                        if (label.messagesUnread <= 0) {
+                                    for (var i = 0; i < orderedLabels.length; i++) {
+                                        var label = orderedLabels[i];
+                                        if (label.threadsUnread <= 0) {
                                             continue;
                                         }
-                                        speechOutput += label.messagesUnread + ' unread message in ' + label.name + '. ';
+                                        speechOutput += label.threadsUnread + ' unread conversations in ' + label.name + '. ';
                                     }
 
                                     callback(sessionAttributes,
@@ -235,19 +235,88 @@ function isEmptyObject(obj) {
  * Remove irrelavant labels like TRASH, SENT etc. 
  */
 function filterLabels(labels) {
-    var processedLables = [];
+    var relevantLabels = [];
+
     if (labels.length == 0) {
-        console.log('No labels found.');
+        console.log('No labels to be filtered.');
+        return labels;
     } else {
         for (var i = 0; i < labels.length; i++) {
             var label = labels[i];
             if (IRRELAVANT_LABELS.indexOf(label.id) <= -1) {
-                processedLables.push(label);
+                relevantLabels.push(label);
             }
         }
     }
 
-    return processedLables;
+    return relevantLabels;
 }
 
-var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CHAT"];
+/**
+ * Arrange the labels in the order in which we want to deliver the results. For example,
+ * Inbox should always go first.
+ */
+function reorderLabels(labels) {
+    var orderedLabels = [];
+
+    var inboxLabel, chatLabel, draftLabel;
+    var defaultLabels = [];
+    var customLabels = [];
+    if (labels.length == 0) {
+        console.log('No labels to be reordered.');
+        return labels;
+    } else {
+        for (var i = 0; i < labels.length; i++) {
+            var label = labels[i];
+
+            if (INBOX_LABEL === label.id) {
+                inboxLabel = label;
+            }
+            else if (CHAT_LABEL === label.id) {
+                chatLabel = label;
+            }
+            else if (DRAFT_LABEL === label.id) {
+                draftLabel = label;
+            }
+            else if (DEFAULT_LABELS.indexOf(label.id) > -1) {
+                defaultLabels.push(label);
+            }
+            else {
+                customLabels.push(label);
+            }
+        }
+    }
+    sortLabelsListByName(defaultLabels);
+    sortLabelsListByName(customLabels);
+
+    orderedLabels.push(inboxLabel);
+    orderedLabels = orderedLabels.concat(customLabels);
+    orderedLabels.push(chatLabel);
+    orderedLabels.push(draftLabel);
+    orderedLabels = orderedLabels.concat(defaultLabels);
+
+    for (var i = 0; i < orderedLabels.length; i++) {
+        console.log('%s (%s) - %s', orderedLabels[i].name, orderedLabels[i].id, orderedLabels[i].messagesUnread);
+    }
+    return orderedLabels;
+}
+
+/**
+ * Sort labels by their name in increasing alphabetical order.
+ */
+function sortLabelsListByName(labelsList) {
+    labelsList.sort(function(first, second){ if (first.name < second.name) {
+    return -1;
+    }
+  if (first.name > second.name) {
+    return 1;
+  }
+  return 0;
+  });
+}
+
+var INBOX_LABEL = "INBOX";
+var CHAT_LABEL = "CHAT";
+var DRAFT_LABEL = "DRAFT";
+var DEFAULT_LABELS = ["CATEGORY_UPDATES", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
+var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CATEGORY_PERSONAL"];
