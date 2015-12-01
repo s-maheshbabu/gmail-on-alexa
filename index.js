@@ -190,16 +190,7 @@ function getWelcomeResponse(session, callback) {
                                 }
                                 else {
                                     var orderedLabels = reorderLabels(labelsWithDetails);
-                                    speechOutput += 'You have '
-                                    console.log('Labels: ');
-                                    for (var i = 0; i < orderedLabels.length; i++) {
-                                        var label = orderedLabels[i];
-                                        if (label.threadsUnread <= 0) {
-                                            continue;
-                                        }
-                                        speechOutput += label.threadsUnread + ' unread ' + (label.threadsUnread === 1 ? 'conversation' : 'conversations') + ' in ' + friendlyNameForLabels(label) + '. ';
-                                    }
-
+                                    speechOutput = buildEmailInfoSpeechResponse(orderedLabels);
                                     callback(sessionAttributes,
                                         buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
                                 }
@@ -259,6 +250,51 @@ var DRAFT_LABEL = "DRAFT";
 var DEFAULT_LABELS = ["CATEGORY_UPDATES", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
 var IRRELAVANT_LABELS = ["TRASH", "UNREAD", "IMPORTANT", "SENT", "STARRED", "SPAM", "CATEGORY_PERSONAL"];
 
+var MAX_NUMBER_OF_LABELS_TO_READ = 3;
+function buildEmailInfoSpeechResponse(labels) {
+    if (labels.length == 0) {
+        return 'You do not have labels in your Gmail account. '
+    }
+
+    // This iteration to gather labels with unread messages will make output response easier because we would
+    // know when to use and when to use 'and', 'comma' etc.
+    var labelsWithUnreadMessages = [];
+    for (var i = 0; i < labels.length; i++) {
+        if (labels[i].threadsUnread > 0) {
+            labelsWithUnreadMessages.push(labels[i]);
+        }
+    }
+
+    var speechOutput = '';
+    var isFirstLabel = true;
+    var numberOfLabelsRead = 0;
+    var iterationStoppedAt = 0;
+    if(labelsWithUnreadMessages.length === 0) {
+        return 'You do not have any unread conversations.';
+    }
+    for (var i = 0; i < labelsWithUnreadMessages.length && numberOfLabelsRead < MAX_NUMBER_OF_LABELS_TO_READ; iterationStoppedAt = i, i++) {
+        var label = labelsWithUnreadMessages[i];
+        if (isFirstLabel) {
+            speechOutput += 'You have ' + label.threadsUnread + ' unread ' + (label.threadsUnread === 1 ? 'conversation' : 'conversations') + ' in ' + friendlyNameForLabels(label) + (i === labelsWithUnreadMessages.length - 1 ? '. ' : '');
+            isFirstLabel = false;
+        } else {
+            speechOutput += (i === labelsWithUnreadMessages.length - 1 ? ' and ' : ', ') + label.threadsUnread + ' in ' + friendlyNameForLabels(label) + (i === labelsWithUnreadMessages.length - 1 ? '' : '');
+        }
+        numberOfLabelsRead++;
+    }
+
+    var remainingUnreadConversationsCount = 0;
+    for(iterationStoppedAt++; iterationStoppedAt < labelsWithUnreadMessages.length; iterationStoppedAt++) {
+        remainingUnreadConversationsCount += labelsWithUnreadMessages[iterationStoppedAt].threadsUnread;
+    }
+    if (remainingUnreadConversationsCount > 0) {
+
+        speechOutput += ' and ' + remainingUnreadConversationsCount + ' more in other labels. Do you want me to read them?';
+    } else {
+        speechOutput += '. Do you want me to read them?';
+    }
+    return speechOutput;
+}
 /**
  * Remove irrelavant labels like TRASH, SENT etc. 
  */
