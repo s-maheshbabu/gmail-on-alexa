@@ -103,8 +103,8 @@ function onSessionEnded(sessionEndedRequest, session) {
 
 function startReadingUnreadMessages(session, callback) {
     var sessionAttributes = session.attributes;
-    var speechOutput = '';
-    var repromptText = '';
+    var speechOutput = "<speak> I shouldn't have said that. </speak>";
+    var repromptText = "<speak> I shouldn't have said that. </speak>";
     var cardTitle = "";
     var cardOutput = "";
     var shouldEndSession = true;
@@ -127,7 +127,7 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
         if (err) {
             console.log("Error fetching messages.");
             if (err.code == 400 || err.code == 403) {
-                speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                 repromptText = "";
                 cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
                 callback(sessionAttributes,
@@ -140,14 +140,17 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
         }
         else {
             var index = 1;
+            speechOutput = "<speak> ";
             messagesWithMetadata.forEach(function (messageWithMetadata) {
 
-                speechOutput += 'Message ' + index + '. ' +
-                'From: ' + messageWithMetadata.payload.headers[1].value + '. ' +
-                'Subject: ' + messageWithMetadata.payload.headers[0].value + '. ' +
-                messageWithMetadata.snippet + '. ';
+                speechOutput += 'Message ' + index + '. <break time=\"300ms\"/> ' +
+                'Subject: ' + messageWithMetadata.payload.headers[0].value + '. <break time=\"300ms\"/> ' +
+                // TODO: Removing the email address. However, if a name is not available, we should use the email address.
+                'From: ' + messageWithMetadata.payload.headers[1].value.replace(/ *\<[^>]*\> */g, "") + '. <break time=\"300ms\"/> ' +
+                messageWithMetadata.snippet + '.';
                 index++;
             });
+            speechOutput += " </speak> ";
 
             callback(sessionAttributes,
                 buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
@@ -160,10 +163,8 @@ function getWelcomeResponse(session, callback) {
     var sessionAttributes = session.attributes;
     var cardTitle = "Welcome to Gmail on Alexa. ";
     var cardOutput = "";
-    var speechOutput = "Hello, welcome to Gmail on Alexa. ";
-    // If the user either does not reply to the welcome message or says something that is not
-    // understood, they will be prompted again with this text.
-    var repromptText = "Reprompt text";
+    var speechOutput = "<speak> I shouldn't have said that. </speak>";
+    var repromptText = "<speak> I shouldn't have said that. </speak>";
     var shouldEndSession = true;
 
     dynamodb.get({
@@ -184,7 +185,7 @@ function getWelcomeResponse(session, callback) {
                     scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
                 });
                 url = url + '&state=' + customerId + '&approval_prompt=force';
-                speechOutput = "Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app. ";
+                speechOutput = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
@@ -198,8 +199,7 @@ function getWelcomeResponse(session, callback) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
                         if(err.code == 400 || err.code == 403) {
-                            speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                            repromptText = "";
+                            speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                             cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
                             callback(sessionAttributes,
                                         buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
@@ -216,8 +216,8 @@ function getWelcomeResponse(session, callback) {
                         }
                         if (numberOfMessages > 0) {
                             shouldEndSession = false;
-                            speechOutput += 'You have ' + response.messages.length + ' unread messages since the last time I checked. Do you want me to start reading them?';
-                            repromptText = 'There are ' + response.messages.length + ' unread messages. I can read the summaries. Should I start reading?';
+                            speechOutput = '<speak> You have ' + response.messages.length + ' unread messages since the last time I checked. Do you want me to start reading them? </speak>';
+                            repromptText = '<speak> There are ' + response.messages.length + ' unread messages. I can read the summaries. Should I start reading? </speak>';
                             console.log('You have ' + util.inspect(response.messages, false, null) + ' unread messages since the last time I checked. Do you want me to start reading them?');
 
                             sessionAttributes = persistMessagesInCache(sessionAttributes, response.messages, response.nextPageToken != undefined);
@@ -318,8 +318,8 @@ function getWelcomeResponse(session, callback) {
 function buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession) {
     return {
         outputSpeech: {
-            type: "PlainText",
-            text: speechOutput
+            type: "SSML",
+            ssml: speechOutput
         },
         card: {
             type: "Simple",
@@ -328,8 +328,8 @@ function buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptTex
         },
         reprompt: {
             outputSpeech: {
-                type: "PlainText",
-                text: repromptText
+                type: "SSML",
+                ssml: repromptText
             }
         },
         shouldEndSession: shouldEndSession
