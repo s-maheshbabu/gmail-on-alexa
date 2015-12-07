@@ -76,16 +76,15 @@ function onIntent(intentRequest, session, callback) {
     console.log("onIntent requestId=" + intentRequest.requestId +
         ", sessionId=" + session.sessionId);
 
-    var intent = intentRequest.intent,
-        intentName = intentRequest.intent.name;
+    var intentName = intentRequest.intent.name;
 
     // Dispatch to your skill's intent handlers
     if ("GmailIntent" === intentName) {
         // setColorInSession(intent, session, callback);
-    } else if ("WhatsMyColorIntent" === intentName) {
-        // getColorFromSession(intent, session, callback);
     } else if ("AMAZON.HelpIntent" === intentName) {
-        getWelcomeResponse(callback);
+        getWelcomeResponse(session, callback);
+    } else if ("AMAZON.YesIntent" === intentName) {
+        startReadingUnreadMessages(session, callback);
     } else {
         throw "Invalid intent";
     }
@@ -98,15 +97,67 @@ function onIntent(intentRequest, session, callback) {
 function onSessionEnded(sessionEndedRequest, session) {
     console.log("onSessionEnded requestId=" + sessionEndedRequest.requestId +
         ", sessionId=" + session.sessionId);
-    // Add cleanup logic here
 }
 
 // --------------- Functions that control the skill's behavior -----------------------
 
+function startReadingUnreadMessages(session, callback) {
+    var sessionAttributes = session.attributes;
+    var speechOutput = '';
+    var repromptText = '';
+    var cardTitle = "";
+    var cardOutput = "";
+    var shouldEndSession = true;
+
+    var messages = sessionAttributes.messages;
+
+// TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
+oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j'});
+
+    var asyncTasks = [];
+    messages.forEach(function (message) {
+        asyncTasks.push(function (callback) {
+            gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
+                callback(null, r);
+            });
+        });
+    });
+
+    async.parallel(asyncTasks, function (err, messagesWithMetadata) {
+        if (err) {
+            console.log("Error fetching messages.");
+            if (err.code == 400 || err.code == 403) {
+                speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                repromptText = "";
+                cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                callback(sessionAttributes,
+                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+            }
+            if (err.code == 402) {
+                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+            }
+            // Generic error message.
+        }
+        else {
+            var index = 1;
+            messagesWithMetadata.forEach(function (messageWithMetadata) {
+
+                speechOutput += 'Message ' + index + '. ' +
+                'From: ' + messageWithMetadata.payload.headers[1].value + '. ' +
+                'Subject: ' + messageWithMetadata.payload.headers[0].value + '. ' +
+                messageWithMetadata.snippet + '. ';
+                index++;
+            });
+
+            callback(sessionAttributes,
+                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+        }
+    });
+}
 function getWelcomeResponse(session, callback) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
-    var sessionAttributes = {};
+    var sessionAttributes = session.attributes;
     var cardTitle = "Welcome to Gmail on Alexa. ";
     var cardOutput = "";
     var speechOutput = "Hello, welcome to Gmail on Alexa. ";
@@ -123,7 +174,7 @@ function getWelcomeResponse(session, callback) {
     }, function (err, tokens) {
         if (err) {
             console.log('ERROR: Reading auth tokens from dynamo failed: ' + err);
-            // Fail here. 
+            // Fail here.
         } else {
             if (isEmptyObject(tokens)) {
                 console.log('No auth tokens found. New user. ');
@@ -143,6 +194,52 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 25, q: 'is:unread after:1448982179'/* + tokens.Item.LCD */}, function (err, response) {
+                    if (err) {
+                        console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
+                        if(err.code == 400 || err.code == 403) {
+                            speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                            repromptText = "";
+                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                            callback(sessionAttributes,
+                                        buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                        }
+                        if(err.code == 402) {
+                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                        }
+                        // Generic error message.
+                    }
+                    else {
+                        var numberOfMessages = 0;
+                        if(response && response.messages) {
+                            numberOfMessages = response.messages.length;
+                        }
+                        if (numberOfMessages > 0) {
+                            shouldEndSession = false;
+                            speechOutput += 'You have ' + response.messages.length + ' unread messages since the last time I checked. Do you want me to start reading them?';
+                            repromptText = 'There are ' + response.messages.length + ' unread messages. I can read the summaries. Should I start reading?';
+                            console.log('You have ' + util.inspect(response.messages, false, null) + ' unread messages since the last time I checked. Do you want me to start reading them?');
+
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, response.messages, response.nextPageToken != undefined);
+                        }
+
+                        dynamodb.update({
+                            "TableName": AUTH_TABLE_NAME,
+                            'Key': { "CID": customerId },
+                            'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
+                            'ExpressionAttributeNames': { "#proxyName": "LCD" },
+                            'UpdateExpression': 'set #proxyName = :last_checked_date'
+                        }, function (err, tokens) {
+                            if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, false, null));
+                            else console.log('Last checked date successfully updated in database');
+
+                            // Return the response irrespective of whether or not the last_checked_date update succeeded.
+                            callback(sessionAttributes,
+                                            buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                        });
+                    }
+                });
+/* Labels code
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch labels for the user: ' + util.inspect(err, false, null));
@@ -191,13 +288,27 @@ function getWelcomeResponse(session, callback) {
                                 else {
                                     var orderedLabels = reorderLabels(labelsWithDetails);
                                     speechOutput = buildEmailInfoSpeechResponse(orderedLabels);
-                                    callback(sessionAttributes,
-                                        buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+
+                                    dynamodb.update({
+                                        "TableName": AUTH_TABLE_NAME,
+                                        'Key': { "CID": customerId },
+                                        'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
+                                        'ExpressionAttributeNames': { "#proxyName": "LCD" },
+                                        'UpdateExpression': 'set #proxyName = :last_checked_date'
+                                    }, function (err, tokens) {
+                                        if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, false, null));
+                                        else console.log('Last checked date successfully updated in database');
+
+                                        // Return the response irrespective of whether or not the last_checked_date update succeeded.
+                                        callback(sessionAttributes,
+                                            buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                                    });
                                 }
                             });
                         }
                     }
                 });
+*/
             }
         }
     });
@@ -296,7 +407,7 @@ function buildEmailInfoSpeechResponse(labels) {
     return speechOutput;
 }
 /**
- * Remove irrelavant labels like TRASH, SENT etc. 
+ * Remove irrelavant labels like TRASH, SENT etc.
  */
 function filterLabels(labels) {
     var relevantLabels = [];
@@ -400,4 +511,16 @@ function friendlyNameForLabels(label) {
         }
     }
     return label.name;
+}
+
+function persistMessagesInCache(sessionAttributes, messages, isMoreMessagesExist) {
+    if(sessionAttributes) {
+        sessionAttributes.messages = messages;
+        sessionAttributes.isMoreMessagesExist = isMoreMessagesExist;
+        return sessionAttributes;
+    }
+    return {
+        messages: messages,
+        isMoreMessagesExist: isMoreMessagesExist
+    };
 }

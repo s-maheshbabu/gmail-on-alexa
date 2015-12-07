@@ -1,0 +1,21 @@
+{
+  "session": {
+    "sessionId": "SessionId.b4023059-2890-4aa7-bc6c-43a59b11dd0f",
+    "application": {
+      "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
+    },
+    "user": {
+      "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
+    },
+    "new": true
+  },
+  "request": {
+    "type": "IntentRequest",
+    "requestId": "EdwRequestId.b9782bc3-1c6f-4a52-9aa9-064978f0f054",
+    "timestamp": 1449394848047,
+    "intent": {
+      "name": "AMAZON.NoIntent",
+      "slots": {}
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "session": {
+    "sessionId": "SessionId.85e57d31-9127-47eb-b8c9-cd8312615b90",
+    "application": {
+      "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
+    },
+    "user": {
+      "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
+    },
+  "attributes": {
+    "messages": [
+      { "id": "15178ad9f77c8b44", "threadId": "15177645d8b7ad78" },
+      { "id": "151784865bf49752", "threadId": "151784865bf49752" },
+      { "id": "1517844e4e823b16", "threadId": "1517844e4e823b16" },
+      { "id": "15177cf403485823", "threadId": "15177cf403485823" },
+      { "id": "15177645d8b7ad78", "threadId": "15177645d8b7ad78" },
+      { "id": "151772dff3ac9bce", "threadId": "151772dff3ac9bce" },
+      { "id": "15174667fdf6b770", "threadId": "15174667fdf6b770" },
+      { "id": "151742b0a0fb342b", "threadId": "15173553669afa08" },
+      { "id": "151742a072104f60", "threadId": "151742a072104f60" },
+      { "id": "15173bbb7be60318", "threadId": "1517387d8e8d6259" },
+      { "id": "1517387d8e8d6259", "threadId": "1517387d8e8d6259" },
+      { "id": "1517387d89a1d2a4", "threadId": "1517244b6057667b" },
+      { "id": "15173553669afa08", "threadId": "15173553669afa08" },
+      { "id": "15172e313a1cf30e", "threadId": "15172e313a1cf30e" },
+      { "id": "15172a9717e0bf2e", "threadId": "15172a9717e0bf2e" },
+      { "id": "1517244b6057667b", "threadId": "1517244b6057667b" },
+      { "id": "151720917b93c9a3", "threadId": "151720917b93c9a3" },
+      { "id": "1516f39c5792ba6c", "threadId": "1516f39c5792ba6c" },
+      { "id": "1516f39c43250b92", "threadId": "1516f39c43250b92" },
+      { "id": "1516e5af3493cba7", "threadId": "1516e5af3493cba7" },
+      { "id": "1516e442536b21c7", "threadId": "1516dfacbfe03cf7" },
+      { "id": "1516e368b6ecaf0a", "threadId": "1516e368b6ecaf0a" },
+      { "id": "1516e2e34a1a16fb", "threadId": "1516dfacbfe03cf7" }
+    ]
+  },
+    "new": true
+  },
+  "request": {
+    "type": "IntentRequest",
+    "requestId": "EdwRequestId.ef3186e8-3c0d-4fa0-ab0c-77b7027a3a3f",
+    "timestamp": 1449394660425,
+    "intent": {
+      "name": "AMAZON.YesIntent",
+      "slots": {}
+    }
+  }
+}
