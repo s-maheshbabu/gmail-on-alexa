@@ -144,9 +144,9 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
             messagesWithMetadata.forEach(function (messageWithMetadata) {
 
                 speechOutput += 'Message ' + index + '. <break time=\"300ms\"/> ' +
-                'Subject: ' + messageWithMetadata.payload.headers[0].value + '. <break time=\"300ms\"/> ' +
+                'Subject: ' + fetchHeader(messageWithMetadata.payload.headers, 'Subject').value + '. <break time=\"300ms\"/> ' +
                 // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                'From: ' + messageWithMetadata.payload.headers[1].value.replace(/ *\<[^>]*\> */g, "") + '. <break time=\"300ms\"/> ' +
+                'From: ' + fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "") + '. <break time=\"300ms\"/> ' +
                 messageWithMetadata.snippet + '.';
                 index++;
             });
@@ -157,6 +157,19 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
         }
     });
 }
+
+function fetchHeader(headers, key) {
+    if(headers.length == 0) {
+        return undefined;
+    }
+    for(var i = 0; i < headers.length; i++) {
+        if(headers[i].name === key) {
+            return headers[i];
+        }
+    }
+    return undefined;
+}
+
 function getWelcomeResponse(session, callback) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
