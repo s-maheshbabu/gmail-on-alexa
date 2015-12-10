@@ -102,13 +102,16 @@ function onSessionEnded(sessionEndedRequest, session) {
 // --------------- Functions that control the skill's behavior -----------------------
 
 function startReadingUnreadMessages(session, callback) {
-    var sessionAttributes = session.attributes;
     var speechOutput = "<speak> I shouldn't have said that. </speak>";
     var repromptText = "<speak> I shouldn't have said that. </speak>";
     var cardTitle = "";
     var cardOutput = "";
     var shouldEndSession = true;
 
+    var sessionAttributes = session.attributes;
+    if(!sessionAttributes || !sessionAttributes.messages || sessionAttributes.messages.length == 0) {
+        throw "Unexpected state. Session should contain the messages to be read. " + session;
+    }
     var messages = sessionAttributes.messages;
 
 // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
