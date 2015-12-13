@@ -1,5 +1,6 @@
 var util = require('util');
 var async = require("async");
+var xmlescape = require('xml-escape');
 
 var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
@@ -73,10 +74,9 @@ function onLaunch(launchRequest, session, callback) {
  * Called when the user specifies an intent for this skill.
  */
 function onIntent(intentRequest, session, callback) {
-    console.log("onIntent requestId=" + intentRequest.requestId +
-        ", sessionId=" + session.sessionId);
-
     var intentName = intentRequest.intent.name;
+    console.log("onIntent requestId=" + intentRequest.requestId +
+        ", sessionId=" + session.sessionId + ", intentName=" +intentName );
 
     // Dispatch to your skill's intent handlers
     if ("GmailIntent" === intentName) {
@@ -142,16 +142,13 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
             // Generic error message.
         }
         else {
-            var index = 1;
-            speechOutput = "<speak> ";
+            speechOutput = '<speak> ';
             messagesWithMetadata.forEach(function (messageWithMetadata) {
-
-                speechOutput += 'Message ' + index + '. <break time=\"300ms\"/> ' +
-                'Subject: ' + fetchHeader(messageWithMetadata.payload.headers, 'Subject').value + '. <break time=\"300ms\"/> ' +
+                var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
+                speechOutput += xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <break time="300ms"/> ' +
                 // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                'From: ' + fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "") + '. <break time=\"300ms\"/> ' +
-                messageWithMetadata.snippet + '.';
-                index++;
+                'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> '
+                // xmlescape(messageWithMetadata.snippet) + ' <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" />';
             });
             speechOutput += " </speak> ";
 
@@ -211,7 +208,7 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 25, q: 'is:unread after:1448982179'/* + tokens.Item.LCD */}, function (err, response) {
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1448982179'/* + tokens.Item.LCD */}, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
                         if(err.code == 400 || err.code == 403) {
