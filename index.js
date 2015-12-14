@@ -85,6 +85,12 @@ function onIntent(intentRequest, session, callback) {
         getWelcomeResponse(session, callback);
     } else if ("AMAZON.YesIntent" === intentName) {
         startReadingUnreadMessages(session, callback);
+    } else if ("AMAZON.NoIntent" === intentName) {
+        exitSkill(callback);
+    } else if ("AMAZON.StopIntent" === intentName) {
+        exitSkill(callback);
+    } else if ("AMAZON.CancelIntent" === intentName) {
+        exitSkill(callback);
     } else {
         throw "Invalid intent";
     }
@@ -156,6 +162,15 @@ oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_V
                 buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
         }
     });
+}
+
+function exitSkill(callback) {
+    var speechOutput = "";
+    var repromptText = "";
+    var shouldEndSession = true;
+
+    callback({},
+             buildSpeechletResponseWithoutCards(speechOutput, repromptText, shouldEndSession));
 }
 
 function fetchHeader(headers, key) {
@@ -338,6 +353,22 @@ function buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptTex
             type: "Simple",
             title: cardTitle,
             content: cardOutput
+        },
+        reprompt: {
+            outputSpeech: {
+                type: "SSML",
+                ssml: repromptText
+            }
+        },
+        shouldEndSession: shouldEndSession
+    };
+}
+
+function buildSpeechletResponseWithoutCards(speechOutput, repromptText, shouldEndSession) {
+    return {
+        outputSpeech: {
+            type: "SSML",
+            ssml: speechOutput
         },
         reprompt: {
             outputSpeech: {
