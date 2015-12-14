@@ -1,6 +1,7 @@
 var util = require('util');
 var async = require("async");
 var xmlescape = require('xml-escape');
+var Q = require('q');
 
 var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
@@ -115,53 +116,88 @@ function startReadingUnreadMessages(session, callback) {
     var shouldEndSession = true;
 
     var sessionAttributes = session.attributes;
-    if(!sessionAttributes || !sessionAttributes.messages || sessionAttributes.messages.length == 0) {
-        throw "Unexpected state. Session should contain the messages to be read. " + session;
+    if (!sessionAttributes) {
+        throw "Unexpected state. Session should exist.";
     }
-    var messages = sessionAttributes.messages;
 
 // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
-oauth2Client.setCredentials({refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j'});
+oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
 
-    var asyncTasks = [];
-    messages.forEach(function (message) {
-        asyncTasks.push(function (callback) {
-            gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
-                callback(null, r);
-            });
+    var messagesResponsePromise;
+    // No messages in session but nextPageToken is available. So fetch messages to be read
+    if ((!sessionAttributes.messagesResponse || !sessionAttributes.messagesResponse.messages || sessionAttributes.messagesResponse.messages.length == 0) && !isEmptyObject(sessionAttributes.messagesResponse.nextPageToken)) {
+        messagesResponsePromise = getMessages(sessionAttributes.messagesResponse.nextPageToken);
+    }
+    // Messages available in the session. So, we can just read them.
+    else if(sessionAttributes.messagesResponse && sessionAttributes.messagesResponse.messages && sessionAttributes.messagesResponse.messages.length > 0){
+        messagesResponsePromise = Q.fcall(function () {
+            return sessionAttributes.messagesResponse;
         });
-    });
+    }
+    // No messages in session and no nextPageToken which means there are no more messages to be read.
+    else {
+        speechOutput = "<speak> There are no more new messages in your inbox. </speak>"
+        shouldEndSession = true;
+        callback(sessionAttributes,
+                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+        return;
+    }
 
-    async.parallel(asyncTasks, function (err, messagesWithMetadata) {
-        if (err) {
-            console.log("Error fetching messages.");
-            if (err.code == 400 || err.code == 403) {
-                speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
-                repromptText = "";
-                cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                callback(sessionAttributes,
-                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
-            }
-            if (err.code == 402) {
-                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-            }
-            // Generic error message.
-        }
-        else {
-            speechOutput = '<speak> ';
-            messagesWithMetadata.forEach(function (messageWithMetadata) {
-                var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
-                speechOutput += xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <break time="300ms"/> ' +
-                // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> '
-                // xmlescape(messageWithMetadata.snippet) + ' <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" />';
-            });
-            speechOutput += " </speak> ";
+    messagesResponsePromise.then(
+                function (response) {
+                    var messages = response.messages;
+                    var asyncTasks = [];
+                    messages.forEach(function (message) {
+                        asyncTasks.push(function (callback) {
+                            gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
+                                callback(null, r);
+                            });
+                        });
+                    });
 
-            callback(sessionAttributes,
-                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
-        }
-    });
+                    async.parallel(asyncTasks, function (err, messagesWithMetadata) {
+                        if (err) {
+                            console.log("Error fetching messages.");
+                            if (err.code == 400 || err.code == 403) {
+                                speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
+                                repromptText = "";
+                                cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                                callback(sessionAttributes,
+                                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                            }
+                            if (err.code == 402) {
+                                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                            }
+                            // Generic error message.
+                        }
+                        else {
+                            speechOutput = '<speak> ';
+                            messagesWithMetadata.forEach(function (messageWithMetadata) {
+                                var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
+                                speechOutput += xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <break time="300ms"/> ' +
+                                // TODO: Removing the email address. However, if a name is not available, we should use the email address.
+                                'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> '
+                                // xmlescape(messageWithMetadata.snippet) + ' <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" />';
+                            });
+                            if (!isEmptyObject(response.nextPageToken)) {
+                                speechOutput += "Do you want me to continue reading?";
+                                shouldEndSession = false;
+                            }
+                            else {
+                                speechOutput += "You have no more new messages";
+                                shouldEndSession = true;
+                            }
+                            speechOutput += " </speak> ";
+
+                            // Since these messages are already read, remove them from the session.
+                            response.messages = undefined;
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, response);
+                            callback(sessionAttributes,
+                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                        }
+                    });
+                }
+                );
 }
 
 function exitSkill(callback) {
@@ -183,6 +219,18 @@ function fetchHeader(headers, key) {
         }
     }
     return undefined;
+}
+
+var getMessages = function (nextPageToken) {
+    var deferred = Q.defer();
+    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1449550000'/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
+        if (err) {
+            deferred.reject(new Error(err));
+        } else {
+            deferred.resolve(response);
+        }
+    });
+    return deferred.promise;
 }
 
 function getWelcomeResponse(session, callback) {
@@ -223,7 +271,7 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1448982179'/* + tokens.Item.LCD */}, function (err, response) {
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1449550000'/* + tokens.Item.LCD */}, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
                         if(err.code == 400 || err.code == 403) {
@@ -244,11 +292,11 @@ function getWelcomeResponse(session, callback) {
                         }
                         if (numberOfMessages > 0) {
                             shouldEndSession = false;
-                            speechOutput = '<speak> You have ' + response.messages.length + ' unread messages since the last time I checked. Do you want me to start reading them? </speak>';
-                            repromptText = '<speak> There are ' + response.messages.length + ' unread messages. I can read the summaries. Should I start reading? </speak>';
+                            speechOutput = '<speak> You have ' + response.messages.length + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
+                            repromptText = '<speak> There are ' + response.messages.length + ' new messages. I can read the summaries. Should I start reading? </speak>';
                             console.log('You have ' + util.inspect(response.messages, false, null) + ' unread messages since the last time I checked. Do you want me to start reading them?');
 
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, response.messages, response.nextPageToken != undefined);
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, response);
                         }
 
                         dynamodb.update({
@@ -557,14 +605,12 @@ function friendlyNameForLabels(label) {
     return label.name;
 }
 
-function persistMessagesInCache(sessionAttributes, messages, isMoreMessagesExist) {
+function persistMessagesInCache(sessionAttributes, messagesResponse) {
     if(sessionAttributes) {
-        sessionAttributes.messages = messages;
-        sessionAttributes.isMoreMessagesExist = isMoreMessagesExist;
+        sessionAttributes.messagesResponse = messagesResponse;
         return sessionAttributes;
     }
     return {
-        messages: messages,
-        isMoreMessagesExist: isMoreMessagesExist
+        messagesResponse: messagesResponse
     };
 }

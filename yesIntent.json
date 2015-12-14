@@ -8,12 +8,14 @@
       "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
     },
   "attributes": {
-    "messages": [
-      { "id": "151937197dba41ec", "threadId": "151937197dba41ec" },
-      { "id": "151934963cd75f5a", "threadId": "1519127608f2454a" },
-      { "id": "1519327b8a799a49", "threadId": "1519327b8a799a49" },
-      { "id": "151930f2dc1540a6", "threadId": "151930f2dc1540a6" }
-    ]
+    "messagesResponse": {
+      "messages":
+        [ { "id": "1519f0adbfdb141d", "threadId": "1519f0adbfdb141d" },
+          { "id": "1519dfe35439cb3d", "threadId": "1519dfe35439cb3d" },
+          { "id": "1519df45e836216f", "threadId": "1519df45e836216f" },
+          { "id": "15182de899b79157", "threadId": "15182934b7c311bf" } ],
+        "nextPageToken": "10883884380834044369",
+        "resultSizeEstimate": 5 }
   },
     "new": true
   },

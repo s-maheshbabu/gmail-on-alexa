@@ -6,7 +6,8 @@
   "dependencies": {
     "googleapis": "2.0.2",
     "async": "1.5.0",
-    "xml-escape": "1.0.0"
+    "xml-escape": "1.0.0",
+    "q": "1.4.1"
   },
   "devDependencies": {
     "grunt": "0.4.*",
