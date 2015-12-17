@@ -17,6 +17,7 @@ var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/
 var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
 
 var AUTH_TABLE_NAME = "TestTable";
+var MESSAGES_PER_TURN = 4;
 
 exports.handler = function (event, context) {
     try {
@@ -145,6 +146,12 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
 
     messagesResponsePromise.then(
                 function (response) {
+                    if(!response || !response.messages || response.messages.length == 0) {
+                        speechOutput = '<speak> You have no more new messages. </speak>';
+                        callback(sessionAttributes,
+                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, true));
+                    }
+
                     var messages = response.messages;
                     var asyncTasks = [];
                     messages.forEach(function (message) {
@@ -178,13 +185,13 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                                 speechOutput += 'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
                                 xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
                             });
-                            if (!isEmptyObject(response.nextPageToken)) {
-                                speechOutput += "Do you want me to continue reading?";
-                                shouldEndSession = false;
+                            if(messagesWithMetadata.length < MESSAGES_PER_TURN) {
+                                speechOutput += "You have no more new messages.";
+                                shouldEndSession = true;
                             }
                             else {
-                                speechOutput += "You have no more new messages";
-                                shouldEndSession = true;
+                                speechOutput += "Do you want me to continue reading?";
+                                shouldEndSession = false;
                             }
                             speechOutput += " </speak> ";
 
@@ -222,7 +229,7 @@ function fetchHeader(headers, key) {
 
 var getMessages = function (nextPageToken) {
     var deferred = Q.defer();
-    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1449550000'/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
+    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450300000'/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
@@ -270,7 +277,7 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: 4, q: 'is:unread after:1449550000'/* + tokens.Item.LCD */}, function (err, response) {
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450300000'/* + tokens.Item.LCD */}, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
                         if(err.code == 400 || err.code == 403) {
