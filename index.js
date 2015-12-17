@@ -174,10 +174,9 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             speechOutput = '<speak> ';
                             messagesWithMetadata.forEach(function (messageWithMetadata) {
                                 var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
-                                speechOutput += xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <break time="300ms"/> ' +
                                 // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                                'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> '
-                                // xmlescape(messageWithMetadata.snippet) + ' <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" />';
+                                speechOutput += 'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
+                                xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
                             });
                             if (!isEmptyObject(response.nextPageToken)) {
                                 speechOutput += "Do you want me to continue reading?";
