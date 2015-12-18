@@ -18,6 +18,7 @@ var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
 
 var AUTH_TABLE_NAME = "TestTable";
 var MESSAGES_PER_TURN = 4;
+var NEW_MESSAGES_PROMPT_THRESHOLD = 10;
 
 exports.handler = function (event, context) {
     try {
@@ -229,7 +230,7 @@ function fetchHeader(headers, key) {
 
 var getMessages = function (nextPageToken) {
     var deferred = Q.defer();
-    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450300000'/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
+    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
@@ -277,7 +278,7 @@ function getWelcomeResponse(session, callback) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450300000'/* + tokens.Item.LCD */}, function (err, response) {
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */}, function (err, response) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
                         if(err.code == 400 || err.code == 403) {
@@ -298,10 +299,14 @@ function getWelcomeResponse(session, callback) {
                         }
                         if (numberOfMessages > 0) {
                             shouldEndSession = false;
-                            speechOutput = '<speak> You have ' + response.messages.length + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
-                            repromptText = '<speak> There are ' + response.messages.length + ' new messages. I can read the summaries. Should I start reading? </speak>';
-                            console.log('You have ' + util.inspect(response.messages, false, null) + ' unread messages since the last time I checked. Do you want me to start reading them?');
+                            speechOutput = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
+                            repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
+                            console.log('You have ' + util.inspect(response.messages, false, null) + ' new messages since the last time I checked. Do you want me to start reading them?');
 
+                            // Retain only the number of messages we want to read in the next turn.
+                            if(numberOfMessages > MESSAGES_PER_TURN) {
+                                response.messages.splice(MESSAGES_PER_TURN, numberOfMessages - MESSAGES_PER_TURN);
+                            }
                             sessionAttributes = persistMessagesInCache(sessionAttributes, response);
                         }
 
