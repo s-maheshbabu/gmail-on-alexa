@@ -126,23 +126,9 @@ function startReadingUnreadMessages(session, callback) {
 oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
 
     var messagesResponsePromise;
-    // No messages in session but nextPageToken is available. So fetch messages to be read
-    if ((!sessionAttributes.messagesResponse || !sessionAttributes.messagesResponse.messages || sessionAttributes.messagesResponse.messages.length == 0) && !isEmptyObject(sessionAttributes.messagesResponse.nextPageToken)) {
+    // Fetch next set of messages to be read
+    if (sessionAttributes.messagesResponse.nextPageToken) {
         messagesResponsePromise = getMessages(sessionAttributes.messagesResponse.nextPageToken);
-    }
-    // Messages available in the session. So, we can just read them.
-    else if(sessionAttributes.messagesResponse && sessionAttributes.messagesResponse.messages && sessionAttributes.messagesResponse.messages.length > 0){
-        messagesResponsePromise = Q.fcall(function () {
-            return sessionAttributes.messagesResponse;
-        });
-    }
-    // No messages in session and no nextPageToken which means there are no more messages to be read.
-    else {
-        speechOutput = "<speak> There are no more new messages in your inbox. </speak>"
-        shouldEndSession = true;
-        callback(sessionAttributes,
-                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
-        return;
     }
 
     messagesResponsePromise.then(
@@ -196,8 +182,6 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             }
                             speechOutput += " </speak> ";
 
-                            // Since these messages are already read, remove them from the session.
-                            response.messages = undefined;
                             sessionAttributes = persistMessagesInCache(sessionAttributes, response);
                             callback(sessionAttributes,
                                 buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
@@ -303,10 +287,10 @@ function getWelcomeResponse(session, callback) {
                             repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
                             console.log('You have ' + util.inspect(response.messages, false, null) + ' new messages since the last time I checked. Do you want me to start reading them?');
 
-                            // Retain only the number of messages we want to read in the next turn.
-                            if(numberOfMessages > MESSAGES_PER_TURN) {
-                                response.messages.splice(MESSAGES_PER_TURN, numberOfMessages - MESSAGES_PER_TURN);
-                            }
+                            // The above call is just to get the count of new messages. If the user wants us to
+                            // read the messages, we want to start from beginning and so setting nextPageToen to zero.
+                            // Optimizatin possible by using the results of the above calls to fetch messages.
+                            response.nextPageToken = '0';
                             sessionAttributes = persistMessagesInCache(sessionAttributes, response);
                         }
 
