@@ -7,7 +7,7 @@ grunt.initConfig({
             options: {
                 // file_name: 'link-gmail-account-with-alexa.js'
                 file_name: 'index.js',
-                event: 'yesIntent.json'
+                event: 'event.json'
             }
         }
     },

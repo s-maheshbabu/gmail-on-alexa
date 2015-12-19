@@ -178,6 +178,7 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             }
                             else {
                                 speechOutput += "Do you want me to continue reading?";
+                                repromptText = "<speak> There are more new messages. Do you want me to continue reading? </speak>";
                                 shouldEndSession = false;
                             }
                             speechOutput += " </speak> ";
@@ -224,6 +225,23 @@ var getMessages = function (nextPageToken) {
     return deferred.promise;
 }
 
+var getAuthTokens = function (customerId) {
+    var deferred = Q.defer();
+    dynamodb.get({
+        "TableName": AUTH_TABLE_NAME,
+        Key: {
+            "CID": customerId
+        }
+    }, function (err, tokens) {
+        if (err) {
+            deferred.reject(new Error(err));
+        } else {
+            deferred.resolve(tokens);
+        }
+    });
+    return deferred.promise;
+}
+
 function getWelcomeResponse(session, callback) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
@@ -234,16 +252,9 @@ function getWelcomeResponse(session, callback) {
     var repromptText = "<speak> I shouldn't have said that. </speak>";
     var shouldEndSession = true;
 
-    dynamodb.get({
-        "TableName": AUTH_TABLE_NAME,
-        Key: {
-            "CID": customerId
-        }
-    }, function (err, tokens) {
-        if (err) {
-            console.log('ERROR: Reading auth tokens from dynamo failed: ' + err);
-            // Fail here.
-        } else {
+    var authTokensPromise = getAuthTokens(customerId);
+    authTokensPromise.then(
+        function (tokens) {
             if (isEmptyObject(tokens)) {
                 console.log('No auth tokens found. New user. ');
 
@@ -310,6 +321,13 @@ function getWelcomeResponse(session, callback) {
                         });
                     }
                 });
+            }     
+        }, 
+        function (error) {
+            console.log('ERROR: Reading auth tokens from dynamo failed: ' + util.inspect(error));
+            // Fail here.
+        }
+        );
 /* Labels code
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
@@ -380,9 +398,6 @@ function getWelcomeResponse(session, callback) {
                     }
                 });
 */
-            }
-        }
-    });
 }
 
 // --------------- Helpers that build all of the responses -----------------------
