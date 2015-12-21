@@ -2,6 +2,7 @@ var util = require('util');
 var async = require("async");
 var xmlescape = require('xml-escape');
 var Q = require('q');
+var AlexaSkill = require('./AlexaSkill');
 
 var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
@@ -20,102 +21,74 @@ var AUTH_TABLE_NAME = "TestTable";
 var MESSAGES_PER_TURN = 4;
 var NEW_MESSAGES_PROMPT_THRESHOLD = 10;
 
-exports.handler = function (event, context) {
-    try {
-        console.log("event.session.application.applicationId=" + event.session.application.applicationId);
-        if (event.session.application.applicationId !== "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9") {
-            context.fail("Function invoked with an invalid Application ID: " + event.session.application.applicationId);
-        }
-
-        if (event.session.new) {
-            onSessionStarted({ requestId: event.request.requestId }, event.session);
-        }
-
-        if (event.request.type === "LaunchRequest") {
-            onLaunch(event.request,
-                event.session,
-                function callback(sessionAttributes, speechletResponse) {
-                    console.log(buildResponse(sessionAttributes, speechletResponse));
-                    context.succeed(buildResponse(sessionAttributes, speechletResponse));
-                });
-        } else if (event.request.type === "IntentRequest") {
-            onIntent(event.request,
-                event.session,
-                function callback(sessionAttributes, speechletResponse) {
-                    console.log(buildResponse(sessionAttributes, speechletResponse));
-                    context.succeed(buildResponse(sessionAttributes, speechletResponse));
-                });
-        } else if (event.request.type === "SessionEndedRequest") {
-            onSessionEnded(event.request, event.session);
-            context.succeed();
-        }
-    } catch (e) {
-        context.fail("Exception: " + e);
-    }
+var APP_ID = "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9";
+var GmailOnAlexa = function () {
+    AlexaSkill.call(this, APP_ID);
 };
 
-/**
- * Called when the session starts.
- */
-function onSessionStarted(sessionStartedRequest, session) {
-    console.log("onSessionStarted requestId=" + sessionStartedRequest.requestId +
-        ", sessionId=" + session.sessionId);
-}
+GmailOnAlexa.prototype = Object.create(AlexaSkill.prototype);
+GmailOnAlexa.prototype.constructor = GmailOnAlexa;
+
+exports.handler = function (event, context) {
+    var skill = new GmailOnAlexa();
+    skill.execute(event, context);
+};
 
 /**
  * Called when the user launches the skill without specifying what they want.
  */
-function onLaunch(launchRequest, session, callback) {
+GmailOnAlexa.prototype.eventHandlers.onLaunch = function(launchRequest, session, response) {
     console.log("onLaunch requestId=" + launchRequest.requestId +
         ", sessionId=" + session.sessionId);
 
     // Dispatch to your skill's launch.
-    getWelcomeResponse(session, callback);
+    getWelcomeResponse(session, response);
 }
 
-/**
- * Called when the user specifies an intent for this skill.
- */
-function onIntent(intentRequest, session, callback) {
-    var intentName = intentRequest.intent.name;
-    console.log("onIntent requestId=" + intentRequest.requestId +
-        ", sessionId=" + session.sessionId + ", intentName=" +intentName );
 
-    // Dispatch to your skill's intent handlers
-    if ("GmailIntent" === intentName) {
-        // setColorInSession(intent, session, callback);
-    } else if ("AMAZON.HelpIntent" === intentName) {
-        getWelcomeResponse(session, callback);
-    } else if ("AMAZON.YesIntent" === intentName) {
-        startReadingUnreadMessages(session, callback);
-    } else if ("AMAZON.NoIntent" === intentName) {
-        exitSkill(callback);
-    } else if ("AMAZON.StopIntent" === intentName) {
-        exitSkill(callback);
-    } else if ("AMAZON.CancelIntent" === intentName) {
-        exitSkill(callback);
-    } else {
-        throw "Invalid intent";
+GmailOnAlexa.prototype.intentHandlers = {
+    "GmailIntent": function (intent, session, response) {
+        getWelcomeResponse(session, response);
+    },
+
+    "AMAZON.YesIntent": function (intent, session, response) {
+        startReadingUnreadMessages(session, response);
+    },
+
+    "AMAZON.NoIntent": function (intent, session, response) {
+        exitSkill(response);
+    },
+
+    "AMAZON.StopIntent": function (intent, session, response) {
+        exitSkill(response);
+    },
+
+    "AMAZON.CancelIntent": function (intent, session, response) {
+        exitSkill(response);
+    },
+
+// If user says help amidst a message reading session, we should continue reading messages after help message.
+    "AMAZON.HelpIntent": function (intent, session, response) {
+        var helpMessage = 'I can read new messages on your Gmail account, newest first. I remember the last time you asked me to check your email and will ' +
+                        'only read the messages you received since. You can also ask me to read all of your unread email in which case I will read all the unread ' +
+                        'messages in your inbox irrespective of when you received them';
+
+        var speechOutput = {
+            speech: helpMessage,
+            type: AlexaSkill.speechOutputType.PLAIN_TEXT
+        };
+        response.tellWithCard(speechOutput, "Gmail Skill Help", helpMessage);
     }
-}
-
-/**
- * Called when the user ends the session.
- * Is not called when the skill returns shouldEndSession=true.
- */
-function onSessionEnded(sessionEndedRequest, session) {
-    console.log("onSessionEnded requestId=" + sessionEndedRequest.requestId +
-        ", sessionId=" + session.sessionId);
-}
+};
 
 // --------------- Functions that control the skill's behavior -----------------------
 
-function startReadingUnreadMessages(session, callback) {
-    var speechOutput = "<speak> I shouldn't have said that. </speak>";
-    var repromptText = "<speak> I shouldn't have said that. </speak>";
+function startReadingUnreadMessages(session, response) {
+    var speechText = "<speak> Alexa should never say this. </speak>";
+    var repromptText = "<speak> Alexa should never say this. </speak>";
     var cardTitle = "";
     var cardOutput = "";
-    var shouldEndSession = true;
+    var isEndOfMessages = true;
 
     var sessionAttributes = session.attributes;
     if (!sessionAttributes) {
@@ -132,14 +105,13 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
     }
 
     messagesResponsePromise.then(
-                function (response) {
-                    if(!response || !response.messages || response.messages.length == 0) {
-                        speechOutput = '<speak> You have no more new messages. </speak>';
-                        callback(sessionAttributes,
-                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, true));
+                function (messagesResponse) {
+                    if(!messagesResponse || !messagesResponse.messages || messagesResponse.messages.length == 0) {
+                        speechText = '<speak> You have no more new messages. </speak>';
+                        response.tell({speech: speechText, type: AlexaSkill.speechOutputType.SSML});
                     }
 
-                    var messages = response.messages;
+                    var messages = messagesResponse.messages;
                     var asyncTasks = [];
                     messages.forEach(function (message) {
                         asyncTasks.push(function (callback) {
@@ -153,11 +125,9 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                         if (err) {
                             console.log("Error fetching messages.");
                             if (err.code == 400 || err.code == 403) {
-                                speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
-                                repromptText = "";
+                                speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                                 cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                                callback(sessionAttributes,
-                                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
                             }
                             if (err.code == 402) {
                                 // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
@@ -165,40 +135,40 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             // Generic error message.
                         }
                         else {
-                            speechOutput = '<speak> ';
+                            speechText = '<speak> ';
                             messagesWithMetadata.forEach(function (messageWithMetadata) {
                                 var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
                                 // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                                speechOutput += 'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
+                                speechText += 'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
                                 xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
                             });
                             if(messagesWithMetadata.length < MESSAGES_PER_TURN) {
-                                speechOutput += "You have no more new messages.";
-                                shouldEndSession = true;
+                                speechText += "You have no more new messages.";
+                                isEndOfMessages = true;
                             }
                             else {
-                                speechOutput += "Do you want me to continue reading?";
+                                speechText += "Do you want me to continue reading?";
                                 repromptText = "<speak> There are more new messages. Do you want me to continue reading? </speak>";
-                                shouldEndSession = false;
+                                isEndOfMessages = false;
                             }
-                            speechOutput += " </speak> ";
+                            speechText += " </speak> ";
 
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, response);
-                            callback(sessionAttributes,
-                                buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
+                            if(isEndOfMessages) {
+                                response.tell({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML});
+                            }
+                            else {
+                                response.ask({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML});
+                            }
                         }
                     });
                 }
                 );
 }
 
-function exitSkill(callback) {
-    var speechOutput = "";
-    var repromptText = "";
-    var shouldEndSession = true;
-
-    callback({},
-             buildSpeechletResponseWithoutCards(speechOutput, repromptText, shouldEndSession));
+function exitSkill(response) {
+    var speechOutput = '';
+    response.tell(speechOutput);
 }
 
 function fetchHeader(headers, key) {
@@ -242,15 +212,14 @@ var getAuthTokens = function (customerId) {
     return deferred.promise;
 }
 
-function getWelcomeResponse(session, callback) {
+function getWelcomeResponse(session, response) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
     var sessionAttributes = session.attributes;
     var cardTitle = "Welcome to Gmail on Alexa. ";
-    var cardOutput = "";
-    var speechOutput = "<speak> I shouldn't have said that. </speak>";
+    var cardOutput = "Welcome to Gmail on Alexa. ";
+    var speechText = "<speak> I shouldn't have said that. </speak>";
     var repromptText = "<speak> I shouldn't have said that. </speak>";
-    var shouldEndSession = true;
 
     var authTokensPromise = getAuthTokens(customerId);
     authTokensPromise.then(
@@ -263,24 +232,22 @@ function getWelcomeResponse(session, callback) {
                     scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
                 });
                 url = url + '&state=' + customerId + '&approval_prompt=force';
-                speechOutput = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
+                speechText = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
-                callback(sessionAttributes,
-                    buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
             }
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */}, function (err, response) {
+                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */}, function (err, messagesResponse) {
                     if (err) {
-                        console.log('Failed to fetch messages for the user: ' + util.inspect(err, false, null));
+                        console.log('Failed to fetch messages for the user: ' + util.inspect(err, {showHidden: true, depth: null}));
                         if(err.code == 400 || err.code == 403) {
-                            speechOutput = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
+                            speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                             cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                            callback(sessionAttributes,
-                                        buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                            response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
                         }
                         if(err.code == 402) {
                             // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
@@ -289,20 +256,20 @@ function getWelcomeResponse(session, callback) {
                     }
                     else {
                         var numberOfMessages = 0;
-                        if(response && response.messages) {
-                            numberOfMessages = response.messages.length;
+                        if(messagesResponse && messagesResponse.messages) {
+                            numberOfMessages = messagesResponse.messages.length;
                         }
                         if (numberOfMessages > 0) {
-                            shouldEndSession = false;
-                            speechOutput = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
+                            speechText = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
                             repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
-                            console.log('You have ' + util.inspect(response.messages, false, null) + ' new messages since the last time I checked. Do you want me to start reading them?');
+                            cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages (' + tokens.Item.LCD + ')';
+                            console.log('You have ' + util.inspect(messagesResponse.messages, {showHidden: true, depth: null}) + ' new messages since the last time I checked. Do you want me to start reading them?');
 
                             // The above call is just to get the count of new messages. If the user wants us to
                             // read the messages, we want to start from beginning and so setting nextPageToen to zero.
                             // Optimizatin possible by using the results of the above calls to fetch messages.
-                            response.nextPageToken = '0';
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, response);
+                            messagesResponse.nextPageToken = '0';
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
                         }
 
                         dynamodb.update({
@@ -312,26 +279,25 @@ function getWelcomeResponse(session, callback) {
                             'ExpressionAttributeNames': { "#proxyName": "LCD" },
                             'UpdateExpression': 'set #proxyName = :last_checked_date'
                         }, function (err, tokens) {
-                            if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, false, null));
+                            if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, {showHidden: true, depth: null}));
                             else console.log('Last checked date successfully updated in database');
 
                             // Return the response irrespective of whether or not the last_checked_date update succeeded.
-                            callback(sessionAttributes,
-                                            buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession));
+                            response.askWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
                         });
                     }
                 });
             }     
         }, 
         function (error) {
-            console.log('ERROR: Reading auth tokens from dynamo failed: ' + util.inspect(error));
+            console.log('ERROR: Reading auth tokens from dynamo failed: ' + util.inspect(error, {showHidden: true, depth: null}));
             // Fail here.
         }
         );
 /* Labels code
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
-                        console.log('Failed to fetch labels for the user: ' + util.inspect(err, false, null));
+                        console.log('Failed to fetch labels for the user: ' + util.inspect(err, {showHidden: true, depth: null}));
                         if(err.code == 400 || err.code == 403) {
                             speechOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
                             repromptText = "";
@@ -385,7 +351,7 @@ function getWelcomeResponse(session, callback) {
                                         'ExpressionAttributeNames': { "#proxyName": "LCD" },
                                         'UpdateExpression': 'set #proxyName = :last_checked_date'
                                     }, function (err, tokens) {
-                                        if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, false, null));
+                                        if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, {showHidden: true, depth: null}));
                                         else console.log('Last checked date successfully updated in database');
 
                                         // Return the response irrespective of whether or not the last_checked_date update succeeded.
@@ -398,52 +364,6 @@ function getWelcomeResponse(session, callback) {
                     }
                 });
 */
-}
-
-// --------------- Helpers that build all of the responses -----------------------
-function buildSpeechletResponse(cardTitle, cardOutput, speechOutput, repromptText, shouldEndSession) {
-    return {
-        outputSpeech: {
-            type: "SSML",
-            ssml: speechOutput
-        },
-        card: {
-            type: "Simple",
-            title: cardTitle,
-            content: cardOutput
-        },
-        reprompt: {
-            outputSpeech: {
-                type: "SSML",
-                ssml: repromptText
-            }
-        },
-        shouldEndSession: shouldEndSession
-    };
-}
-
-function buildSpeechletResponseWithoutCards(speechOutput, repromptText, shouldEndSession) {
-    return {
-        outputSpeech: {
-            type: "SSML",
-            ssml: speechOutput
-        },
-        reprompt: {
-            outputSpeech: {
-                type: "SSML",
-                ssml: repromptText
-            }
-        },
-        shouldEndSession: shouldEndSession
-    };
-}
-
-function buildResponse(sessionAttributes, speechletResponse) {
-    return {
-        version: "1.0",
-        sessionAttributes: sessionAttributes,
-        response: speechletResponse
-    };
 }
 
 // --------------- Utility Methods -----------------------

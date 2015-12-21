@@ -1,28 +1,54 @@
 {
   "session": {
-    "sessionId": "SessionId.85e57d31-9127-47eb-b8c9-cd8312615b90",
+    "sessionId": "SessionId.9ee4dbc0-73a2-4803-a66c-51743d63fc14",
     "application": {
       "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
+    },
+    "attributes": {
+      "messagesResponse": {
+        "messages": [
+          {
+            "id": "151c13d866950020",
+            "threadId": "151c13d866950020"
+          },
+          {
+            "id": "151bba24a3ff0bc8",
+            "threadId": "151ba55d06c1e1d1"
+          },
+          {
+            "id": "151ba894bd531925",
+            "threadId": "151ba894bd531925"
+          },
+          {
+            "id": "151ba55d06c1e1d1",
+            "threadId": "151ba55d06c1e1d1"
+          },
+          {
+            "id": "151ba23485daf4be",
+            "threadId": "151ba23485daf4be"
+          },
+          {
+            "id": "151b1d79c1e8b74c",
+            "threadId": "151b1d79c1e8b74c"
+          },
+          {
+            "id": "151b1b23473f560c",
+            "threadId": "151b1b23473f560c"
+          }
+        ],
+        "resultSizeEstimate": 7,
+        "nextPageToken": "0"
+      }
     },
     "user": {
       "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
     },
-  "attributes": {
-    "messagesResponse": {
-      "messages":
-        [ { "id": "1519f0adbfdb141d", "threadId": "1519f0adbfdb141d" },
-          { "id": "1519dfe35439cb3d", "threadId": "1519dfe35439cb3d" },
-          { "id": "1519df45e836216f", "threadId": "1519df45e836216f" },
-          { "id": "15182de899b79157", "threadId": "15182934b7c311bf" } ],
-        "nextPageToken": "10883884380834044369",
-        "resultSizeEstimate": 5 }
-  },
-    "new": true
+    "new": false
   },
   "request": {
     "type": "IntentRequest",
-    "requestId": "EdwRequestId.ef3186e8-3c0d-4fa0-ab0c-77b7027a3a3f",
-    "timestamp": 1449394660425,
+    "requestId": "EdwRequestId.9578a608-215a-4b2d-9b8f-75a8edb95926",
+    "timestamp": 1450673693604,
     "intent": {
       "name": "AMAZON.YesIntent",
       "slots": {}
