@@ -20,6 +20,11 @@ AlexaSkill.speechOutputType = {
     SSML: 'SSML'
 }
 
+AlexaSkill.cardOutputType = {
+    SIMPLE: 'Simple',
+    LINK_ACCOUNT: 'LinkAccount'
+}
+
 AlexaSkill.prototype.requestHandlers = {
     LaunchRequest: function (event, context, response) {
         this.eventHandlers.onLaunch.call(this, event.request, event.session, response);
@@ -123,15 +128,29 @@ var Response = function (context, session) {
 };
 
 function createSpeechObject(optionsParam) {
-    if (optionsParam && optionsParam.type === 'SSML') {
+    if (optionsParam && optionsParam.type === AlexaSkill.speechOutputType.SSML) {
         return {
             type: optionsParam.type,
             ssml: optionsParam.speech
         };
     } else {
         return {
-            type: optionsParam.type || 'PlainText',
+            type: optionsParam.type || AlexaSkill.speechOutputType.PLAIN_TEXT,
             text: optionsParam.speech || optionsParam
+        }
+    }
+}
+
+function createCardObject(optionsParam) {
+    if (optionsParam && optionsParam.type === AlexaSkill.cardOutputType.LINK_ACCOUNT) {
+        return {
+            type: optionsParam.type
+        };
+    } else {
+        return {
+            type: optionsParam.type || AlexaSkill.cardOutputType.SIMPLE,
+            title: optionsParam.cardTitle,
+            content: optionsParam.cardOutput
         }
     }
 }
@@ -147,12 +166,8 @@ Response.prototype = (function () {
                 outputSpeech: createSpeechObject(options.reprompt)
             };
         }
-        if (options.cardTitle && options.cardContent) {
-            alexaResponse.card = {
-                type: "Simple",
-                title: options.cardTitle,
-                content: options.cardContent
-            };
+        if (options.cardOutput) {
+            alexaResponse.card = createCardObject(options.cardOutput);
         }
         var returnResult = {
                 version: '1.0',
@@ -173,12 +188,11 @@ Response.prototype = (function () {
                 shouldEndSession: true
             }));
         },
-        tellWithCard: function (speechOutput, cardTitle, cardContent) {
+        tellWithCard: function (speechOutput, cardOutput) {
             this._context.succeed(buildSpeechletResponse({
                 session: this._session,
                 output: speechOutput,
-                cardTitle: cardTitle,
-                cardContent: cardContent,
+                cardOutput: cardOutput,
                 shouldEndSession: true
             }));
         },
@@ -190,13 +204,12 @@ Response.prototype = (function () {
                 shouldEndSession: false
             }));
         },
-        askWithCard: function (speechOutput, repromptSpeech, cardTitle, cardContent) {
+        askWithCard: function (speechOutput, repromptSpeech, cardOutput) {
             this._context.succeed(buildSpeechletResponse({
                 session: this._session,
                 output: speechOutput,
                 reprompt: repromptSpeech,
-                cardTitle: cardTitle,
-                cardContent: cardContent,
+                cardOutput: cardOutput,
                 shouldEndSession: false
             }));
         }

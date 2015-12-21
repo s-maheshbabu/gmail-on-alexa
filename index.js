@@ -15,6 +15,7 @@ var gmail = google.gmail('v1');
 var CLIENT_ID = '175453001188-nkr6j5ik5kc5f2rg8ns6emju48tojnsp.apps.googleusercontent.com';
 var CLIENT_SECRET = 'JM2iWplt5_zC6iHPInmH3VYb';
 var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/mydemoresource';
+
 var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
 
 var AUTH_TABLE_NAME = "TestTable";
@@ -77,7 +78,7 @@ GmailOnAlexa.prototype.intentHandlers = {
             speech: helpMessage,
             type: AlexaSkill.speechOutputType.PLAIN_TEXT
         };
-        response.tellWithCard(speechOutput, "Gmail Skill Help", helpMessage);
+        response.tellWithCard(speechOutput, {cardTitle: "Gmail Skill Help", cardOutput: helpMessage});
     }
 };
 
@@ -127,7 +128,7 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             if (err.code == 400 || err.code == 403) {
                                 speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                                 cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
+                                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
                             }
                             if (err.code == 402) {
                                 // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
@@ -236,7 +237,7 @@ function getWelcomeResponse(session, response) {
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
-                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
+                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.LINK_ACCOUNT, cardTitle: cardTitle, cardOutput: cardOutput});
             }
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
@@ -247,7 +248,7 @@ function getWelcomeResponse(session, response) {
                         if(err.code == 400 || err.code == 403) {
                             speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
                             cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                            response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
+                            response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
                         }
                         if(err.code == 402) {
                             // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
@@ -283,7 +284,7 @@ function getWelcomeResponse(session, response) {
                             else console.log('Last checked date successfully updated in database');
 
                             // Return the response irrespective of whether or not the last_checked_date update succeeded.
-                            response.askWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML}, cardTitle, cardOutput);
+                            response.askWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
                         });
                     }
                 });
