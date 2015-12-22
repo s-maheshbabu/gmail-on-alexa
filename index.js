@@ -12,13 +12,9 @@ var google = require('./node_modules/googleapis/lib/googleapis.js');
 var OAuth2Client = google.auth.OAuth2;
 var gmail = google.gmail('v1');
 
-var CLIENT_ID = '175453001188-nkr6j5ik5kc5f2rg8ns6emju48tojnsp.apps.googleusercontent.com';
-var CLIENT_SECRET = 'JM2iWplt5_zC6iHPInmH3VYb';
-var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/mydemoresource';
+var oauth2Client = new OAuth2Client();
 
-var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
-
-var AUTH_TABLE_NAME = "TestTable";
+var GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES = "GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES";
 var MESSAGES_PER_TURN = 4;
 var NEW_MESSAGES_PROMPT_THRESHOLD = 10;
 
@@ -95,9 +91,8 @@ function startReadingUnreadMessages(session, response) {
     if (!sessionAttributes) {
         throw "Unexpected state. Session should exist.";
     }
-
 // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
-oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
+oauth2Client.setCredentials({ access_token: session.user.accessToken });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
@@ -186,7 +181,7 @@ function fetchHeader(headers, key) {
 
 var getMessages = function (nextPageToken) {
     var deferred = Q.defer();
-    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
+    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450385000 '/* + preferences.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
@@ -196,18 +191,18 @@ var getMessages = function (nextPageToken) {
     return deferred.promise;
 }
 
-var getAuthTokens = function (customerId) {
+var getCustomerPreferences = function (customerId) {
     var deferred = Q.defer();
     dynamodb.get({
-        "TableName": AUTH_TABLE_NAME,
+        "TableName": GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES,
         Key: {
             "CID": customerId
         }
-    }, function (err, tokens) {
+    }, function (err, preferences) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
-            deferred.resolve(tokens);
+            deferred.resolve(preferences);
         }
     });
     return deferred.promise;
@@ -221,78 +216,69 @@ function getWelcomeResponse(session, response) {
     var cardOutput = "Welcome to Gmail on Alexa. ";
     var speechText = "<speak> I shouldn't have said that. </speak>";
     var repromptText = "<speak> I shouldn't have said that. </speak>";
-
-    var authTokensPromise = getAuthTokens(customerId);
-    authTokensPromise.then(
-        function (tokens) {
-            if (isEmptyObject(tokens)) {
-                console.log('No auth tokens found. New user. ');
-
-                var url = oauth2Client.generateAuthUrl({
-                    access_type: 'offline', // will return a refresh token
-                    scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
-                });
-                url = url + '&state=' + customerId + '&approval_prompt=force';
-                speechText = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
-                cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
-                cardOutput = url;
-
-                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.LINK_ACCOUNT, cardTitle: cardTitle, cardOutput: cardOutput});
-            }
-            else {
-                console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
-                oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */}, function (err, messagesResponse) {
-                    if (err) {
-                        console.log('Failed to fetch messages for the user: ' + util.inspect(err, {showHidden: true, depth: null}));
-                        if(err.code == 400 || err.code == 403) {
-                            speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
-                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                            response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
-                        }
-                        if(err.code == 402) {
-                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                        }
-                        // Generic error message.
+    
+    var accessToken = session.user.accessToken;
+    if (isEmptyObject(accessToken)) {
+        console.log('No access token  for ' + customerId + '. New user. ');
+        speechText = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
+        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
+    }
+            
+    var customerPreferencesPromise = getCustomerPreferences(customerId);
+    customerPreferencesPromise.then(
+        function (preferences) {
+            console.log('Customer Preferences were found in the data store: ' + JSON.stringify(preferences, null, '  '));
+            oauth2Client.setCredentials({ access_token: accessToken });
+            gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + preferences.LCD */ }, function (err, messagesResponse) {
+                if (err) {
+                    console.log('Failed to fetch messages for the user: ' + util.inspect(err, { showHidden: true, depth: null }));
+                    if (err.code == 400 || err.code == 403) {
+                        speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
+                        cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
                     }
-                    else {
-                        var numberOfMessages = 0;
-                        if(messagesResponse && messagesResponse.messages) {
-                            numberOfMessages = messagesResponse.messages.length;
-                        }
-                        if (numberOfMessages > 0) {
-                            speechText = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
-                            repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
-                            cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages (' + tokens.Item.LCD + ')';
-                            console.log('You have ' + util.inspect(messagesResponse.messages, {showHidden: true, depth: null}) + ' new messages since the last time I checked. Do you want me to start reading them?');
-
-                            // The above call is just to get the count of new messages. If the user wants us to
-                            // read the messages, we want to start from beginning and so setting nextPageToen to zero.
-                            // Optimizatin possible by using the results of the above calls to fetch messages.
-                            messagesResponse.nextPageToken = '0';
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
-                        }
-
-                        dynamodb.update({
-                            "TableName": AUTH_TABLE_NAME,
-                            'Key': { "CID": customerId },
-                            'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
-                            'ExpressionAttributeNames': { "#proxyName": "LCD" },
-                            'UpdateExpression': 'set #proxyName = :last_checked_date'
-                        }, function (err, tokens) {
-                            if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, {showHidden: true, depth: null}));
-                            else console.log('Last checked date successfully updated in database');
-
-                            // Return the response irrespective of whether or not the last_checked_date update succeeded.
-                            response.askWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
-                        });
+                    if (err.code == 402) {
+                        // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
                     }
-                });
-            }     
-        }, 
+                    // Generic error message.
+                }
+                else {
+                    var numberOfMessages = 0;
+                    if (messagesResponse && messagesResponse.messages) {
+                        numberOfMessages = messagesResponse.messages.length;
+                    }
+                    if (numberOfMessages > 0) {
+                        speechText = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
+                        repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
+                        cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages (' + preferences.Item.LCD + ')';
+                        console.log('You have ' + util.inspect(messagesResponse.messages, { showHidden: true, depth: null }) + ' new messages since the last time I checked. Do you want me to start reading them?');
+
+                        // The above call is just to get the count of new messages. If the user wants us to
+                        // read the messages, we want to start from beginning and so setting nextPageToen to zero.
+                        // Optimizatin possible by using the results of the above calls to fetch messages.
+                        messagesResponse.nextPageToken = '0';
+                        sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
+                    }
+
+                    dynamodb.update({
+                        "TableName": GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES,
+                        'Key': { "CID": customerId },
+                        'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
+                        'ExpressionAttributeNames': { "#proxyName": "LCD" },
+                        'UpdateExpression': 'set #proxyName = :last_checked_date'
+                    }, function (err, tokens) {
+                        if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, { showHidden: true, depth: null }));
+                        else console.log('Last checked date successfully updated in database');
+
+                        // Return the response irrespective of whether or not the last_checked_date update succeeded.
+                        response.askWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    });
+                }
+            });
+        },
         function (error) {
-            console.log('ERROR: Reading auth tokens from dynamo failed: ' + util.inspect(error, {showHidden: true, depth: null}));
-            // Fail here.
+            console.log('ERROR: Reading customer preferences from dynamo failed: ' + util.inspect(error, { showHidden: true, depth: null }));
+            response.tell({ speech: "Am sorry, but am not able to fetch your info at the moment. Please try again later." });
         }
         );
 /* Labels code
@@ -346,7 +332,7 @@ function getWelcomeResponse(session, response) {
                                     speechOutput = buildEmailInfoSpeechResponse(orderedLabels);
 
                                     dynamodb.update({
-                                        "TableName": AUTH_TABLE_NAME,
+                                        "TableName": GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES,
                                         'Key': { "CID": customerId },
                                         'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
                                         'ExpressionAttributeNames': { "#proxyName": "LCD" },

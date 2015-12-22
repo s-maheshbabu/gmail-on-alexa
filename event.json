@@ -1,17 +1,18 @@
 {
   "session": {
-    "sessionId": "SessionId.ec23586c-77a7-4d5e-8595-89b4358c0a2c",
+    "sessionId": "SessionId.53c1e0d6-b36c-42b6-ae14-278f8af02d27",
     "application": {
       "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
     },
     "user": {
-      "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
+      "userId": "amzn1.echo-sdk-account.AGPIWHW5PLZYTF76SRHJERA24DHFKJZF2M375FNRMOHXJP7R4SF7Y",
+      "accessToken": "ya29.UgJrx7JkMGfTcljohVlLLU0tiOTVUKIWAzcU1POj7a-8KMog7da9MWzxdDM3zFESRYuX"
     },
     "new": true
   },
   "request": {
     "type": "LaunchRequest",
-    "requestId": "EdwRequestId.378c1f26-74f7-413f-b3ed-d7339930608a",
-    "timestamp": 1448350945106
+    "requestId": "EdwRequestId.73af4134-d58d-4b33-80c4-594b32a2cd0c",
+    "timestamp": 1450763599545
   }
 }
