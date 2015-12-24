@@ -208,6 +208,13 @@ var getAuthTokens = function (customerId) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
+            if(tokens && tokens.Item && !tokens.Item.LCD)
+            {
+                // LastCheckedDate will be empty for new customers. We default it to 30 days ago.
+                var aMonthAgo = new Date();
+                aMonthAgo.setDate(new Date().getDate() - 30);
+                tokens.Item.LCD = Math.floor(aMonthAgo.getTime() / 1000);
+            }
             deferred.resolve(tokens);
         }
     });
@@ -229,11 +236,7 @@ function getWelcomeResponse(session, response) {
             if (isEmptyObject(tokens)) {
                 console.log('No auth tokens found. New user. ');
 
-                var url = oauth2Client.generateAuthUrl({
-                    access_type: 'offline', // will return a refresh token
-                    scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
-                });
-                url = url + '&state=' + customerId + '&approval_prompt=force';
+                var url = getAccountLinkingURL();
                 speechText = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
@@ -247,8 +250,11 @@ function getWelcomeResponse(session, response) {
                     if (err) {
                         console.log('Failed to fetch messages for the user: ' + util.inspect(err, {showHidden: true, depth: null}));
                         if(err.code == 400 || err.code == 403) {
-                            speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
-                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                            var accountLinkingUrl = getAccountLinkingURL();
+                            speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
+                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.\n" +
+                                            "Use this link to grant me access to your gmail account\n" +
+                                            accountLinkingUrl;
                             response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
                         }
                         if(err.code == 402) {
@@ -297,6 +303,17 @@ function getWelcomeResponse(session, response) {
             // Fail here.
         }
         );
+
+function getAccountLinkingURL()
+{
+    var url = oauth2Client.generateAuthUrl({
+        access_type: 'offline', // will return a refresh token
+        scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
+    });
+    url = url + '&state=' + customerId + '&approval_prompt=force';
+
+    return url;
+}
 /* Labels code
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
