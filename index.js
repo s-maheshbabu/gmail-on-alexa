@@ -141,7 +141,7 @@ oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_
                             messagesWithMetadata.forEach(function (messageWithMetadata) {
                                 var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
                                 // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                                speechText += 'From: ' + (isEmptyObject(sender) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
+                                speechText += 'From: ' + ((!sender || 0 === sender.length) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
                                 xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
                             });
                             if(messagesWithMetadata.length < MESSAGES_PER_TURN) {
