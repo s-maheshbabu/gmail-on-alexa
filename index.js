@@ -237,7 +237,7 @@ function getWelcomeResponse(session, response) {
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
 
-                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.LINK_ACCOUNT, cardTitle: cardTitle, cardOutput: cardOutput});
+                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.SIMPLE, cardTitle: cardTitle, cardOutput: cardOutput});
             }
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
