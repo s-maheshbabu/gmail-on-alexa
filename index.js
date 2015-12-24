@@ -3,6 +3,7 @@ var async = require("async");
 var xmlescape = require('xml-escape');
 var Q = require('q');
 var AlexaSkill = require('./AlexaSkill');
+var dateFormat = require('dateformat');
 
 var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
@@ -263,7 +264,8 @@ function getWelcomeResponse(session, response) {
                         if (numberOfMessages > 0) {
                             speechText = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
                             repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
-                            cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages (' + tokens.Item.LCD + ')';
+                            cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages at '
+                                                + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS");
                             console.log('You have ' + util.inspect(messagesResponse.messages, {showHidden: true, depth: null}) + ' new messages since the last time I checked. Do you want me to start reading them?');
 
                             // The above call is just to get the count of new messages. If the user wants us to
