@@ -1,0 +1,9 @@
+// Place your key bindings in this file to overwrite the defaults
+[
+{ "key": "ctrl+d",          "command": "editor.action.deleteLines",
+                                     "when": "editorTextFocus" },
+{ "key": "ctrl+alt+down",        "command": "editor.action.copyLinesDownAction",
+                                     "when": "editorTextFocus" },
+{ "key": "ctrl+alt+up",          "command": "editor.action.copyLinesUpAction",
+                                     "when": "editorTextFocus" }                                     
+]

@@ -1,0 +1,17 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+	// When enabled, will trim trailing whitespace when you save a file.
+	"files.trimTrailingWhitespace": true,
+
+	// Complete functions with their parameter signature.
+	"typescript.useCodeSnippetsOnMethodSuggest": true,
+
+	// Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.
+	"editor.wrappingIndent": "indent",
+
+	// Controls if the editor should automatically format the line after typing
+	"editor.formatOnType": true,
+
+	// Controls whether the editor should render whitespace characters
+	"editor.renderWhitespace": true
+}
