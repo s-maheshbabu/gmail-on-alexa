@@ -189,7 +189,7 @@ var getMessages = function (nextPageToken, query, numberOfMessages) {
     var deferred = Q.defer();
     gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: numberOfMessages, q: query, pageToken: nextPageToken }, function (err, response) {
         if (err) {
-            deferred.reject(new Error(err));
+            deferred.reject(err);
         } else {
             deferred.resolve(response);
         }
@@ -206,7 +206,7 @@ var getAuthTokens = function (customerId) {
         }
     }, function (err, tokens) {
         if (err) {
-            deferred.reject(new Error(err));
+            deferred.reject(err);
         } else {
             if(tokens && tokens.Item && !tokens.Item.LCD)
             {
@@ -261,7 +261,7 @@ function getWelcomeResponse(session, response) {
             if (isEmptyObject(tokens)) {
                 console.log('No auth tokens found. New user. ');
 
-                var url = getAccountLinkingURL();
+                var url = getAccountLinkingURL(customerId);
                 speechText = "<speak> Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app.  </speak>";
                 cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
                 cardOutput = url;
@@ -331,7 +331,7 @@ function getWelcomeResponse(session, response) {
                                 function (error) {
                                     console.log('Failed to fetch all unread messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                                     if (error.code == 400 || error.code == 403) {
-                                        var accountLinkingUrl = getAccountLinkingURL();
+                                        var accountLinkingUrl = getAccountLinkingURL(customerId);
                                         speechText = "<speak> Sorry, am not able to access your gmail. You might have revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
                                         cardOutput = "Sorry, am not able to access your gmail. You might have revoked my access to your gmail account.\n" +
                                         "Use this link to grant me access to your gmail account\n" +
@@ -350,7 +350,7 @@ function getWelcomeResponse(session, response) {
                     function (error) {
                         console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                         if (error.code == 400 || error.code == 403) {
-                            var accountLinkingUrl = getAccountLinkingURL();
+                            var accountLinkingUrl = getAccountLinkingURL(customerId);
                             speechText = "<speak> Sorry, am not able to access your Gmail. You might have revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
                             cardOutput = "Sorry, am not able to access your gmail. You might have revoked my access to your gmail account.\n" +
                             "Use this link to grant me access to your gmail account\n" +
@@ -381,7 +381,7 @@ function getWelcomeResponse(session, response) {
         function (error) {
             console.log('Failed to fetch tokens from database and so cannot proceed: ' + util.inspect(error, { showHidden: true, depth: null }));
             if (error.code == 400 || error.code == 403) {
-                var accountLinkingUrl = getAccountLinkingURL();
+                var accountLinkingUrl = getAccountLinkingURL(customerId);
                 speechText = "<speak> Sorry, looks like I lost access to your gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.</speak>";
                 cardOutput = "Sorry, looks like I lost access to your gmail account. It might help if you grant me access to your Gmail account again.\n" +
                 "Use this link.\n" +
@@ -648,7 +648,7 @@ function friendlyNameForLabels(label) {
     return label.name;
 }
 
-function getAccountLinkingURL()
+function getAccountLinkingURL(customerId)
 {
     var url = oauth2Client.generateAuthUrl({
         access_type: 'offline', // will return a refresh token
