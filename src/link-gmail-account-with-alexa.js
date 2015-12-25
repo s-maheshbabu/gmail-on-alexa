@@ -2,7 +2,7 @@ var AWS = require('aws-sdk');
 AWS.config.update({ region: "us-east-1" });
 var dynamodb = new AWS.DynamoDB.DocumentClient();
 
-var google = require('./node_modules/googleapis/lib/googleapis.js');
+var google = require('../node_modules/googleapis/lib/googleapis.js');
 var OAuth2Client = google.auth.OAuth2;
 var gmail = google.gmail('v1');
 
