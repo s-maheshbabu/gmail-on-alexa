@@ -93,79 +93,79 @@ function startReadingUnreadMessages(session, response) {
     var isEndOfMessages = true;
 
     var sessionAttributes = session.attributes;
-    if (!sessionAttributes) {
+    if (!sessionAttributes || !sessionAttributes.query) {
         throw "Unexpected state. Session should exist.";
     }
-
-// TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
-oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
+    var query = sessionAttributes.query;
+    // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
+    oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
     if (sessionAttributes.messagesResponse.nextPageToken) {
-        messagesResponsePromise = getMessages(sessionAttributes.messagesResponse.nextPageToken);
+        messagesResponsePromise = getMessages(sessionAttributes.messagesResponse.nextPageToken, query, MESSAGES_PER_TURN);
     }
 
     messagesResponsePromise.then(
-                function (messagesResponse) {
-                    if(!messagesResponse || !messagesResponse.messages || messagesResponse.messages.length == 0) {
-                        speechText = '<speak> You have no more new messages. </speak>';
-                        response.tell({speech: speechText, type: AlexaSkill.speechOutputType.SSML});
+        function (messagesResponse) {
+            if (!messagesResponse || !messagesResponse.messages || messagesResponse.messages.length == 0) {
+                speechText = '<speak> You have no more new messages. </speak>';
+                response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.SSML });
+            }
+
+            var messages = messagesResponse.messages;
+            var asyncTasks = [];
+            messages.forEach(function (message) {
+                asyncTasks.push(function (callback) {
+                    gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
+                        callback(null, r);
+                    });
+                });
+            });
+
+            async.parallel(asyncTasks, function (err, messagesWithMetadata) {
+                if (err) {
+                    console.log("Error fetching message details. "+ util.inspect(err, { showHidden: true, depth: null }));
+                    if (err.code == 400 || err.code == 403) {
+                        speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
+                        cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
                     }
-
-                    var messages = messagesResponse.messages;
-                    var asyncTasks = [];
-                    messages.forEach(function (message) {
-                        asyncTasks.push(function (callback) {
-                            gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
-                                callback(null, r);
-                            });
-                        });
-                    });
-
-                    async.parallel(asyncTasks, function (err, messagesWithMetadata) {
-                        if (err) {
-                            console.log("Error fetching messages.");
-                            if (err.code == 400 || err.code == 403) {
-                                speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
-                                cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
-                                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
-                            }
-                            if (err.code == 402) {
-                                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                            }
-                            // Generic error message.
-                        }
-                        else {
-                            speechText = '<speak> ';
-                            messagesWithMetadata.forEach(function (messageWithMetadata) {
-                                var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
-                                // TODO: Removing the email address. However, if a name is not available, we should use the email address.
-                                speechText += 'From: ' + ((!sender || 0 === sender.length) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
-                                xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
-                            });
-                            if(messagesWithMetadata.length < MESSAGES_PER_TURN) {
-                                speechText += "You have no more new messages.";
-                                isEndOfMessages = true;
-                            }
-                            else {
-                                speechText += "Do you want me to continue reading?";
-                                repromptText = "<speak> There are more new messages. Do you want me to continue reading? </speak>";
-                                isEndOfMessages = false;
-                            }
-                            speechText += " </speak> ";
-
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
-                            if(isEndOfMessages) {
-                                response.tell({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML});
-                            }
-                            else {
-                                response.ask({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML});
-                            }
-                        }
-                    });
+                    if (err.code == 402) {
+                        // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                    }
+                    // Generic error message.
                 }
-                );
+                else {
+                    speechText = '<speak> ';
+                    messagesWithMetadata.forEach(function (messageWithMetadata) {
+                        var sender = fetchHeader(messageWithMetadata.payload.headers, 'From').value.replace(/ *\<[^>]*\> */g, "");
+                        // TODO: Removing the email address. However, if a name is not available, we should use the email address.
+                        speechText += 'From: ' + ((!sender || 0 === sender.length) ? 'Unknown Sender' : xmlescape(sender)) + '. <break time="300ms"/> ' +
+                        xmlescape(fetchHeader(messageWithMetadata.payload.headers, 'Subject').value) + '. <audio src="https://s3-us-west-2.amazonaws.com/gmail-on-alexa/message-end.mp3" /> ';
+                    });
+                    if (messagesWithMetadata.length < MESSAGES_PER_TURN) {
+                        speechText += "You have no more new messages.";
+                        isEndOfMessages = true;
+                    }
+                    else {
+                        speechText += "Do you want me to continue reading?";
+                        repromptText = "<speak> There are more new messages. Do you want me to continue reading? </speak>";
+                        isEndOfMessages = false;
+                    }
+                    speechText += " </speak> ";
+
+                    sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
+                    if (isEndOfMessages) {
+                        response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML });
+                    }
+                    else {
+                        response.ask({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML });
+                    }
+                }
+            });
+        }
+        );
 }
 
 function exitSkill(response) {
@@ -185,9 +185,9 @@ function fetchHeader(headers, key) {
     return undefined;
 }
 
-var getMessages = function (nextPageToken) {
+var getMessages = function (nextPageToken, query, numberOfMessages) {
     var deferred = Q.defer();
-    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: MESSAGES_PER_TURN, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */, pageToken: nextPageToken }, function (err, response) {
+    gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: numberOfMessages, q: query, pageToken: nextPageToken }, function (err, response) {
         if (err) {
             deferred.reject(new Error(err));
         } else {
@@ -221,6 +221,30 @@ var getAuthTokens = function (customerId) {
     return deferred.promise;
 }
 
+/**
+ * Updates the last checked date to the current time for the given customer. Any errors while updating the database
+ * are logged and swallowed.
+ */
+var updateLCD = function (customerId) {
+    var deferred = Q.defer();
+    dynamodb.update({
+        "TableName": AUTH_TABLE_NAME,
+        'Key': { "CID": customerId },
+        'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
+        'ExpressionAttributeNames': { "#proxyName": "LCD" },
+        'UpdateExpression': 'set #proxyName = :last_checked_date'
+    }, function (err, response) {
+        if (err) {
+            console.log('Last checked date was not saved to the database. Ignoring the error.' + util.inspect(err, { showHidden: true, depth: null }));
+        } else {
+            console.log('Last checked date successfully updated in database.');
+        }
+        deferred.resolve();
+    });
+
+    return deferred.promise;
+}
+
 function getWelcomeResponse(session, response) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
@@ -229,6 +253,7 @@ function getWelcomeResponse(session, response) {
     var cardOutput = "Welcome to Gmail on Alexa. ";
     var speechText = "<speak> I shouldn't have said that. </speak>";
     var repromptText = "<speak> I shouldn't have said that. </speak>";
+    var shouldEndSession = false;
 
     var authTokensPromise = getAuthTokens(customerId);
     authTokensPromise.then(
@@ -245,75 +270,131 @@ function getWelcomeResponse(session, response) {
             }
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
-                oauth2Client.setCredentials({refresh_token: tokens.Item.REFRESH_TOKEN});
-                gmail.users.messages.list({ userId: 'me', auth: oauth2Client, maxResults: NEW_MESSAGES_PROMPT_THRESHOLD + 1, q: 'is:unread after:1450385000 '/* + tokens.Item.LCD */}, function (err, messagesResponse) {
-                    if (err) {
-                        console.log('Failed to fetch messages for the user: ' + util.inspect(err, {showHidden: true, depth: null}));
-                        if(err.code == 400 || err.code == 403) {
-                            var accountLinkingUrl = getAccountLinkingURL();
-                            speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
-                            cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.\n" +
-                                            "Use this link to grant me access to your gmail account\n" +
-                                            accountLinkingUrl;
-                            response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
-                        }
-                        if(err.code == 402) {
-                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                        }
-                        // Generic error message.
-                    }
-                    else {
+                oauth2Client.setCredentials({ refresh_token: tokens.Item.REFRESH_TOKEN });
+                var query = 'is:unread after:' + tokens.Item.LCD;/*'1450385000'*/;
+
+                var newMessagesPromise = getMessages(undefined, query, NEW_MESSAGES_PROMPT_THRESHOLD + 1);
+                newMessagesPromise.then(
+                    function (messagesResponse) {
                         var numberOfMessages = 0;
-                        if(messagesResponse && messagesResponse.messages) {
+                        if (messagesResponse && messagesResponse.messages) {
                             numberOfMessages = messagesResponse.messages.length;
                         }
+
                         if (numberOfMessages > 0) {
                             speechText = '<speak> You have ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked. Do you want me to start reading them? </speak>';
                             repromptText = '<speak> There are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages. I can read the summaries. Should I start reading? </speak>';
                             cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new messages since the last time I checked your messages at '
-                                                + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS");
-                            console.log('You have ' + util.inspect(messagesResponse.messages, {showHidden: true, depth: null}) + ' new messages since the last time I checked. Do you want me to start reading them?');
+                            + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS");
+                            console.log('You have ' + util.inspect(messagesResponse.messages, { showHidden: true, depth: null }) + ' new messages since the last time I checked. Do you want me to start reading them?');
 
                             // The above call is just to get the count of new messages. If the user wants us to
                             // read the messages, we want to start from beginning and so setting nextPageToen to zero.
                             // Optimizatin possible by using the results of the above calls to fetch messages.
                             messagesResponse.nextPageToken = '0';
-                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse);
+                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
+
+                            return updateLCD(customerId);
+                        } else {
+                            query = 'is:unread';
+                            var allUnreadMessagesPromise = getMessages(undefined, query, NEW_MESSAGES_PROMPT_THRESHOLD + 1);
+                            allUnreadMessagesPromise.then(
+                                function (messagesResponse) {
+                                    numberOfMessages = 0;
+                                    if (messagesResponse && messagesResponse.messages) {
+                                        numberOfMessages = messagesResponse.messages.length;
+                                    }
+
+                                    if (numberOfMessages > 0) {
+                                        speechText = '<speak> You have no new messages since the last time I checked. However there are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread messages in your account. Do you want me to start reading them? </speak>';
+                                        repromptText = '<speak> Although there aren\'t any new messages since the last time I checked date date, there are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread messages in your account in total. Do you want me to start reading those messages? </speak>';
+                                        cardOutput = "I did not find any new messages since the last time I checked your messages at "
+                                        + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + " but found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
+                                        " unread messages in total in your account";
+
+                                        // The above call is just to get the count of new messages. If the user wants us to
+                                        // read the messages, we want to start from beginning and so setting nextPageToen to zero.
+                                        // Optimizatin possible by using the results of the above calls to fetch messages.
+                                        messagesResponse.nextPageToken = '0';
+                                        sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
+                                    }
+                                    else {
+                                        speechText = '<speak> There are no new messages since the last time I checked. In fact, there are no unread messages at all in your account. Awesome! You achieved inbox zero. </speak>';
+                                        cardOutput = "There were no new messages since the last time I checked at "
+                                        + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + "." +
+                                        " In fact, there were no unread messages at all in your account. Awesome! You achieved inbox zero.";
+                                        shouldEndSession = true;
+                                    }
+
+                                    return updateLCD(customerId);
+                                },
+                                function (error) {
+                                    console.log('Failed to fetch all unread messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+                                    if (error.code == 400 || error.code == 403) {
+                                        var accountLinkingUrl = getAccountLinkingURL();
+                                        speechText = "<speak> Sorry, am not able to access your gmail. You might have revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
+                                        cardOutput = "Sorry, am not able to access your gmail. You might have revoked my access to your gmail account.\n" +
+                                        "Use this link to grant me access to your gmail account\n" +
+                                        accountLinkingUrl;
+                                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                                    }
+                                    if (error.code == 402) {
+                                        // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                                    }
+                                    // Generic error message.
+                                });
+
+                                return allUnreadMessagesPromise;
                         }
-
-                        dynamodb.update({
-                            "TableName": AUTH_TABLE_NAME,
-                            'Key': { "CID": customerId },
-                            'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
-                            'ExpressionAttributeNames': { "#proxyName": "LCD" },
-                            'UpdateExpression': 'set #proxyName = :last_checked_date'
-                        }, function (err, tokens) {
-                            if (err) console.log('Last checked date was not saved to the database' + util.inspect(err, {showHidden: true, depth: null}));
-                            else console.log('Last checked date successfully updated in database');
-
-                            // Return the response irrespective of whether or not the last_checked_date update succeeded.
-                            response.askWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {speech: repromptText, type: AlexaSkill.speechOutputType.SSML}, {cardTitle: cardTitle, cardOutput: cardOutput});
-                        });
+                    },
+                    function (error) {
+                        console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+                        if (error.code == 400 || error.code == 403) {
+                            var accountLinkingUrl = getAccountLinkingURL();
+                            speechText = "<speak> Sorry, am not able to access your Gmail. You might have revoked my access to your gmail account. I put a link in the companion app if you wish to give me access to your gmail account.</speak>";
+                            cardOutput = "Sorry, am not able to access your gmail. You might have revoked my access to your gmail account.\n" +
+                            "Use this link to grant me access to your gmail account\n" +
+                            accountLinkingUrl;
+                            response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        }
+                        if (error.code == 402) {
+                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                        }
+                        // Generic error message.
                     }
-                });
-            }     
-        }, 
+                    ).then(
+                    function () {
+                        // Return the response irrespective of whether or not the last_checked_date update succeeded.
+                        if (!shouldEndSession) {
+                            response.askWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        } else {
+                            response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        }
+                    },
+                    function (err) {
+                        console.log('LCD update failures shouldn\'t get propagated and so we shouldn\'t have ever reached here.');
+                        // Generic error message.
+                    }
+                    );
+            }
+        },
         function (error) {
-            console.log('ERROR: Reading auth tokens from dynamo failed: ' + util.inspect(error, {showHidden: true, depth: null}));
-            // Fail here.
+            console.log('Failed to fetch tokens from database and so cannot proceed: ' + util.inspect(error, { showHidden: true, depth: null }));
+            if (error.code == 400 || error.code == 403) {
+                var accountLinkingUrl = getAccountLinkingURL();
+                speechText = "<speak> Sorry, looks like I lost access to your gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.</speak>";
+                cardOutput = "Sorry, looks like I lost access to your gmail account. It might help if you grant me access to your Gmail account again.\n" +
+                "Use this link.\n" +
+                accountLinkingUrl;
+                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+            }
+            if (error.code == 402) {
+                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+            }
+            // Generic error message.
         }
         );
 
-function getAccountLinkingURL()
-{
-    var url = oauth2Client.generateAuthUrl({
-        access_type: 'offline', // will return a refresh token
-        scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
-    });
-    url = url + '&state=' + customerId + '&approval_prompt=force';
-
-    return url;
-}
 /* Labels code
                 gmail.users.labels.list({ userId: 'me', auth: oauth2Client, fields: ['labels/id'] }, function (err, response) {
                     if (err) {
@@ -394,6 +475,18 @@ function isEmptyObject(obj) {
         }
     }
     return true;
+}
+
+function persistMessagesInCache(sessionAttributes, messagesResponse, query) {
+    if(sessionAttributes) {
+        sessionAttributes.messagesResponse = messagesResponse;
+        sessionAttributes.query = query;
+        return sessionAttributes;
+    }
+    return {
+        messagesResponse: messagesResponse,
+        query: query
+    };
 }
 
 // --------------- Gmail specific utilities -----------------------
@@ -555,12 +648,13 @@ function friendlyNameForLabels(label) {
     return label.name;
 }
 
-function persistMessagesInCache(sessionAttributes, messagesResponse) {
-    if(sessionAttributes) {
-        sessionAttributes.messagesResponse = messagesResponse;
-        return sessionAttributes;
-    }
-    return {
-        messagesResponse: messagesResponse
-    };
+function getAccountLinkingURL()
+{
+    var url = oauth2Client.generateAuthUrl({
+        access_type: 'offline', // will return a refresh token
+        scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
+    });
+    url = url + '&state=' + customerId + '&approval_prompt=force';
+
+    return url;
 }
