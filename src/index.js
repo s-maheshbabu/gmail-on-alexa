@@ -307,7 +307,8 @@ function getWelcomeResponse(session, response) {
 
                                     if (numberOfMessages > 0) {
                                         speechText = '<speak> You have no new messages since the last time I checked. However there are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread messages in your account. Do you want me to start reading them? </speak>';
-                                        repromptText = '<speak> Although there aren\'t any new messages since the last time I checked date date, there are ' + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread messages in your account in total. Do you want me to start reading those messages? </speak>';
+                                        repromptText = '<speak> Although there aren\'t any new messages since the last time I checked at ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM TT") + ' on ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "mmmm dS") + ', there are ' +
+                                            (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread messages in your account in total. Do you want me to start reading those messages? </speak>';
                                         cardOutput = "I did not find any new messages since the last time I checked your messages at "
                                         + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + " but found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
                                         " unread messages in total in your account";
