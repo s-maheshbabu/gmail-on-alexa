@@ -91,14 +91,13 @@ function startReadingUnreadMessages(session, response) {
     var cardTitle = "";
     var cardOutput = "";
     var isEndOfMessages = true;
-
     var sessionAttributes = session.attributes;
     if (!sessionAttributes || !sessionAttributes.query) {
         throw "Unexpected state. Session should exist.";
     }
     var query = sessionAttributes.query;
     // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
-    oauth2Client.setCredentials({ refresh_token: '1/OHPGZ2wimSfCUKN_Js4SWBvBqENuG2s_VuPoqEhw7fTBactUREZofsF9C7PrpE-j' });
+    oauth2Client.setCredentials({ refresh_token: '1/2kX_hUJD_2hWQxcwObBMU0Dl2tsH5yONQlLvBlGRM6E' });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
@@ -164,6 +163,17 @@ function startReadingUnreadMessages(session, response) {
                     }
                 }
             });
+        }, function (err) {
+            console.log("Error fetching message details. " + util.inspect(err, { showHidden: true, depth: null }));
+            if (err.code == 400 || err.code == 403) {
+                speechText = "<speak> Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account. </speak>";
+                cardOutput = "Sorry, am not able to access your gmail. This can happen if you revoked my access to your gmail account.";
+                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+            }
+            if (err.code == 402) {
+                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+            }
+            // Generic error message.
         }
         );
 }
