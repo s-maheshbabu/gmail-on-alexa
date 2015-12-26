@@ -4,7 +4,6 @@ var dynamodb = new AWS.DynamoDB.DocumentClient();
 
 var google = require('../node_modules/googleapis/lib/googleapis.js');
 var OAuth2Client = google.auth.OAuth2;
-var gmail = google.gmail('v1');
 
 var CLIENT_ID = '175453001188-nkr6j5ik5kc5f2rg8ns6emju48tojnsp.apps.googleusercontent.com';
 var CLIENT_SECRET = 'JM2iWplt5_zC6iHPInmH3VYb';
