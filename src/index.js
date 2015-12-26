@@ -149,7 +149,7 @@ function startReadingUnreadMessages(session, response) {
                     }
                     else {
                         speechText += "Do you want me to continue reading?";
-                        repromptText = "<speak> There are more new messages. Do you want me to continue reading? </speak>";
+                        repromptText = "<speak> There are more messages. Do you want me to continue reading? </speak>";
                         isEndOfMessages = false;
                     }
                     speechText += " </speak> ";
