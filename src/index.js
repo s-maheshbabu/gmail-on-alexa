@@ -98,10 +98,11 @@ var ResponseStrings = function () {
 
 function startReadingUnreadMessages(session, response) {
     var sessionAttributes = session.attributes;
-    if (!sessionAttributes || !sessionAttributes.query) {
+    if (!sessionAttributes || !sessionAttributes.query || !sessionAttributes.refreshToken) {
         throw "Unexpected state. Session should exist and be in a valid date. Session: " + util.inspect(sessionAttributes, { showHidden: true, depth: null });
     }
     var query = sessionAttributes.query;
+    oauth2Client.setCredentials({ refresh_token: sessionAttributes.refreshToken });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
@@ -114,19 +115,6 @@ function startReadingUnreadMessages(session, response) {
             var deliverMessagesPromise = deliverMessages(messagesResponse, sessionAttributes);
             sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
             return deliverMessagesPromise;
-        },
-        function (err) {
-            console.log("Error fetching messages. " + util.inspect(err, { showHidden: true, depth: null }));
-            if (err.code == 400 || err.code == 403) {
-                var speechText = "Sorry, am not able to access your Gmail. This can happen if you revoked my access to your Gmail account.";
-                var cardTitle = "Failed to access your Gmail account."
-                var cardOutput = "Sorry, am not able to access your Gmail. This can happen if you revoked my access to your Gmail account.";
-                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-            }
-            if (err.code == 402) {
-                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-            }
-            // Generic error message.
         }
         ).then(
         function (responseStrings) {
@@ -136,9 +124,23 @@ function startReadingUnreadMessages(session, response) {
             else {
                 response.ask({ speech: responseStrings.speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: responseStrings.repromptText, type: AlexaSkill.speechOutputType.SSML });
             }
-        }, function (failureResponseStrings) {
-                response.tellWithCard({speech: failureResponseStrings.speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.SIMPLE, cardTitle: failureResponseStrings.cardTitle, cardOutput: failureResponseStrings.cardOutput});
+        },
+        function (err) {
+            console.log("Error fetching messages. " + util.inspect(err, { showHidden: true, depth: null }));
+            if (err.code == 400 || err.code == 403) {
+                var accountLinkingUrl = getAccountLinkingURL(session.user.userId);
+                var speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
+                var cardTitle = "Failed to access your Gmail account."
+                var cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
+                "Use this link to grant me access to your Gmail account\n" +
+                accountLinkingUrl;
+                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
             }
+            if (err.code == 402) {
+                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+            }
+            // Generic error message.
+        }
         );
 }
 
@@ -170,20 +172,7 @@ function deliverMessages(messagesResponse) {
 
     async.parallel(asyncTasks, function (err, messagesWithMetadata) {
         if (err) {
-            console.log("Error fetching message details. " + util.inspect(err, { showHidden: true, depth: null }));
-            if (err.code == 400 || err.code == 403) {
-                responseStrings.speechText = "Sorry, am not able to access your Gmail. This can happen if you revoked my access to your Gmail account.";
-                responseStrings.repromptText = "";
-                responseStrings.cardTitle = "Failed to access your Gmail.";
-                responseStrings.cardOutput = "Sorry, am not able to access your Gmail. This can happen if you revoked my access to your Gmail account.";
-                responseStrings.terminateSession = true;
-
-                deferred.reject(responseStrings);
-            }
-            if (err.code == 402) {
-                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-            }
-            // Generic error message.
+            deferred.reject(err);
         }
         else {
             var speechText = '';
@@ -321,6 +310,7 @@ function getWelcomeResponse(session, response) {
             else {
                 console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
                 oauth2Client.setCredentials({ refresh_token: tokens.Item.REFRESH_TOKEN });
+                sessionAttributes = persistRefreshTokenInCache(sessionAttributes, tokens.Item.REFRESH_TOKEN);
                 var query = ALL_UNREAD_MESSAGES_QUERY + ' after:' + tokens.Item.LCD;/*'1450385000';*/
 
                 var newMessagesPromise = getMessages(undefined, query, NEW_MESSAGES_PROMPT_THRESHOLD + 1);
@@ -482,6 +472,16 @@ function isEmptyObject(obj) {
         }
     }
     return true;
+}
+
+function persistRefreshTokenInCache(sessionAttributes, refreshToken) {
+        if(sessionAttributes) {
+        sessionAttributes.refreshToken = refreshToken;
+        return sessionAttributes;
+    }
+    return {
+        refreshToken: refreshToken
+    };
 }
 
 function persistMessagesInCache(sessionAttributes, messagesResponse, query) {
