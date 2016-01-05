@@ -165,11 +165,10 @@ function deliverMessages(messagesResponse) {
     messages.forEach(function (message) {
         asyncTasks.push(function (callback) {
             gmail.users.messages.get({ auth: oauth2Client, userId: 'me', id: message.id, format: 'metadata', metadataHeaders: ['From', 'Subject'], fields: ['id, payload, snippet'] }, function (err, r) {
-                callback(null, r);
+                callback(err, r);
             });
         });
     });
-
     async.parallel(asyncTasks, function (err, messagesWithMetadata) {
         if (err) {
             deferred.reject(err);
@@ -353,8 +352,8 @@ function getWelcomeResponse(session, response) {
                                             repromptText = 'Although there aren\'t any new messages since the last time I checked at ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM TT") + ' on ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "mmmm dS") + ', there are ' +
                                                 (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' in your account in total. Do you want me to start reading?';
                                             cardOutput = 'I did not find any new messages since the last time I checked your messages at '
-                                            + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + ' but found ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
-                                            ' unread' + (numberOfMessages === 1 ? (' message') : ' messages') + ' in total in your account';
+                                                            + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + ' but found ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
+                                                            ' unread' + (numberOfMessages === 1 ? (' message') : ' messages') + ' in total in your account';
 
                                             // The above call is just to get the count of new messages. If the user wants us to
                                             // read the messages, we want to start from beginning and so setting nextPageToen to zero.
@@ -369,21 +368,6 @@ function getWelcomeResponse(session, response) {
                                             " In fact, there were no unread messages at all in your account. Awesome! You achieved inbox zero.";
                                             shouldEndSession = true;
                                         }
-                                    },
-                                    function (error) {
-                                        console.log('Failed to fetch all unread messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
-                                        if (error.code == 400 || error.code == 403) {
-                                            var accountLinkingUrl = getAccountLinkingURL(customerId);
-                                            speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
-                                            cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
-                                            "Use this link to grant me access to your Gmail account\n" +
-                                            accountLinkingUrl;
-                                            response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-                                        }
-                                        if (error.code == 402) {
-                                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                                        }
-                                        // Generic error message.
                                     });
 
                                     return allUnreadMessagesPromise;
@@ -414,6 +398,21 @@ function getWelcomeResponse(session, response) {
                         else {
                             return Q(true);
                         }
+                    },
+                    function (error) {
+                        console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+                        if (error.code == 400 || error.code == 403) {
+                            var accountLinkingUrl = getAccountLinkingURL(customerId);
+                            speechText = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.";
+                            cardOutput = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again.\n" +
+                                            "Use this link.\n" +
+                                            accountLinkingUrl;
+                            response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        }
+                        if (error.code == 402) {
+                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                        }
+                        // Generic error message.
                     }
                     )
                     .then(
