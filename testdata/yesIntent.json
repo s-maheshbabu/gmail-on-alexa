@@ -1,54 +1,43 @@
 {
   "session": {
-    "sessionId": "SessionId.9ee4dbc0-73a2-4803-a66c-51743d63fc14",
+    "sessionId": "SessionId.bfd2a9ff-6be7-4bcc-b750-e698e65cb91e",
     "application": {
       "applicationId": "amzn1.echo-sdk-ams.app.8197c761-239b-49eb-aacd-0ead732763a9"
     },
     "attributes": {
+      "query": "is:unread after:1450385000",
       "messagesResponse": {
         "messages": [
           {
-            "id": "151c13d866950020",
-            "threadId": "151c13d866950020"
+            "id": "151e38abe7a071ff",
+            "threadId": "151e38abe7a071ff"
           },
           {
-            "id": "151bba24a3ff0bc8",
-            "threadId": "151ba55d06c1e1d1"
+            "id": "151e3539d29d1a9c",
+            "threadId": "151e3539d29d1a9c"
           },
           {
-            "id": "151ba894bd531925",
-            "threadId": "151ba894bd531925"
+            "id": "151dfabb4df27ce7",
+            "threadId": "151df730e699be81"
           },
           {
-            "id": "151ba55d06c1e1d1",
-            "threadId": "151ba55d06c1e1d1"
-          },
-          {
-            "id": "151ba23485daf4be",
-            "threadId": "151ba23485daf4be"
-          },
-          {
-            "id": "151b1d79c1e8b74c",
-            "threadId": "151b1d79c1e8b74c"
-          },
-          {
-            "id": "151b1b23473f560c",
-            "threadId": "151b1b23473f560c"
+            "id": "151df730e699be81",
+            "threadId": "151df730e699be81"
           }
         ],
-        "resultSizeEstimate": 7,
-        "nextPageToken": "0"
+        "nextPageToken": "12191090654842427581",
+        "resultSizeEstimate": 5
       }
     },
     "user": {
-      "userId": "amzn1.account.AG3JHTUULOB2VOLY25MAUR2E4GXA"
+      "userId": "amzn1.echo-sdk-account.AGPIWHW5PLZYTF76SRHJERA24DHFKJZF2M375FNRMOHXJP7R4SF7Y"
     },
     "new": false
   },
   "request": {
     "type": "IntentRequest",
-    "requestId": "EdwRequestId.9578a608-215a-4b2d-9b8f-75a8edb95926",
-    "timestamp": 1450673693604,
+    "requestId": "EdwRequestId.40df6df0-3aee-49bd-b883-f203a83c26d6",
+    "timestamp": "2016-01-03T09:49:30Z",
     "intent": {
       "name": "AMAZON.YesIntent",
       "slots": {}

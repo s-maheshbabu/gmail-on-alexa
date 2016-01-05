@@ -82,7 +82,7 @@ AlexaSkill.prototype.eventHandlers = {
     /**
      * Called when the user ends the session.
      * Subclasses could have overriden this function to close any open resources. It
-     * is not called when skill sets shouldEndSession to true. 
+     * is not called when skill sets shouldEndSession to true.
      */
     onSessionEnded: function (sessionEndedRequest, session) {
         console.log("onSessionEnded requestId=" + sessionEndedRequest.requestId +
@@ -131,7 +131,7 @@ function createSpeechObject(optionsParam) {
     if (optionsParam && optionsParam.type === AlexaSkill.speechOutputType.SSML) {
         return {
             type: optionsParam.type,
-            ssml: optionsParam.speech
+            ssml: '<speak>' + optionsParam.speech + '</speak>'
         };
     } else {
         return {
