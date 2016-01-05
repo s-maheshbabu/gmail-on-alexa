@@ -102,8 +102,6 @@ function startReadingUnreadMessages(session, response) {
         throw "Unexpected state. Session should exist and be in a valid date. Session: " + util.inspect(sessionAttributes, { showHidden: true, depth: null });
     }
     var query = sessionAttributes.query;
-    // TODO: Remove: In real flow, this won't be needed because oauth client is already initiatlized.
-    oauth2Client.setCredentials({ refresh_token: '1/2kX_hUJD_2hWQxcwObBMU0Dl2tsH5yONQlLvBlGRM6E' });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
