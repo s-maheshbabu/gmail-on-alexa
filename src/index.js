@@ -57,7 +57,7 @@ GmailOnAlexa.prototype.intentHandlers = {
     },
 
     "AMAZON.YesIntent": function (intent, session, response) {
-        startReadingUnreadMessages(session, response);
+        continueReadingMoreMessages(session, response);
     },
 
     "AMAZON.NoIntent": function (intent, session, response) {
@@ -96,7 +96,7 @@ var ResponseStrings = function () {
     this.terminateSession = true;
 }
 
-function startReadingUnreadMessages(session, response) {
+function continueReadingMoreMessages(session, response) {
     var sessionAttributes = session.attributes;
     if (!sessionAttributes || !sessionAttributes.query || !sessionAttributes.refreshToken) {
         throw "Unexpected state. Session should exist and be in a valid date. Session: " + util.inspect(sessionAttributes, { showHidden: true, depth: null });
