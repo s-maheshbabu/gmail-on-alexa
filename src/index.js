@@ -126,20 +126,15 @@ function continueReadingMoreMessages(session, response) {
             }
         },
         function (err) {
-            console.log("Error fetching messages. " + util.inspect(err, { showHidden: true, depth: null }));
-            if (err.code == 400 || err.code == 403) {
-                var accountLinkingUrl = getAccountLinkingURL(session.user.userId);
-                var speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
-                var cardTitle = "Failed to access your Gmail account."
-                var cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
-                "Use this link to grant me access to your Gmail account\n" +
-                accountLinkingUrl;
-                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+            console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+            if (error.code == 401) {
+                speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
+                cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
+                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
             }
-            if (err.code == 402) {
-                // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
-            }
-            // Generic error message.
+
+            speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+            response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
         }
         );
 }
@@ -382,18 +377,14 @@ function getWelcomeResponse(session, response) {
                 },
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
-                    if (error.code == 400 || error.code == 403) {
-                        var accountLinkingUrl = getAccountLinkingURL(customerId);
-                        speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
-                        cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
-                            "Use this link to grant me access to your Gmail account\n" +
-                            accountLinkingUrl;
-                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    if (error.code == 401) {
+                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
+                        cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
                     }
-                    if (error.code == 402) {
-                        // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
-                    }
-                    // Generic error message.
+
+                    speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+                    response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
             )
                 .then(
@@ -408,18 +399,14 @@ function getWelcomeResponse(session, response) {
                 },
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
-                    if (error.code == 400 || error.code == 403) {
-                        var accountLinkingUrl = getAccountLinkingURL(customerId);
-                        speechText = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.";
-                        cardOutput = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again.\n" +
-                            "Use this link.\n" +
-                            accountLinkingUrl;
-                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    if (error.code == 401) {
+                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
+                        cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
                     }
-                    if (error.code == 402) {
-                        // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
-                    }
-                    // Generic error message.
+
+                    speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+                    response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
                 )
                 .then(
