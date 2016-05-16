@@ -15,9 +15,8 @@ var gmail = google.gmail('v1');
 
 var CLIENT_ID = '175453001188-nkr6j5ik5kc5f2rg8ns6emju48tojnsp.apps.googleusercontent.com';
 var CLIENT_SECRET = 'JM2iWplt5_zC6iHPInmH3VYb';
-var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/mydemoresource';
 
-var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
+var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET);
 
 var GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES_TABLE_NAME = "GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES";
 var MESSAGES_PER_TURN = 4;
@@ -469,16 +468,4 @@ function persistMessagesInCache(sessionAttributes, messagesResponse, query) {
         messagesResponse: messagesResponse,
         query: query
     };
-}
-
-// --------------- Gmail specific utilities -----------------------
-function getAccountLinkingURL(customerId)
-{
-    var url = oauth2Client.generateAuthUrl({
-        access_type: 'offline', // will return a refresh token
-        scope: 'https://www.googleapis.com/auth/gmail.readonly' // can be a space-delimited string or an array of scopes
-    });
-    url = url + '&state=' + customerId + '&approval_prompt=force';
-
-    return url;
 }
