@@ -19,7 +19,7 @@ var REDIRECT_URL = 'https://iz0thnltv7.execute-api.us-east-1.amazonaws.com/Prod/
 
 var oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
 
-var AUTH_TABLE_NAME = "TestTable";
+var GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES_TABLE_NAME = "GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES";
 var MESSAGES_PER_TURN = 4;
 var NEW_MESSAGES_PROMPT_THRESHOLD = 4;
 var UNREAD_MESSAGES_PROMPT_THRESHOLD = 10;
@@ -98,11 +98,11 @@ var ResponseStrings = function () {
 
 function continueReadingMoreMessages(session, response) {
     var sessionAttributes = session.attributes;
-    if (!sessionAttributes || !sessionAttributes.query || !sessionAttributes.refreshToken) {
+    if (!sessionAttributes || !sessionAttributes.query || !sessionAttributes.accessToken) {
         throw "Unexpected state. Session should exist and be in a valid date. Session: " + util.inspect(sessionAttributes, { showHidden: true, depth: null });
     }
     var query = sessionAttributes.query;
-    oauth2Client.setCredentials({ refresh_token: sessionAttributes.refreshToken });
+    oauth2Client.setCredentials({ access_token: sessionAttributes.accessToken });
 
     var messagesResponsePromise;
     // Fetch next set of messages to be read
@@ -137,7 +137,7 @@ function continueReadingMoreMessages(session, response) {
                 response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
             }
             if (err.code == 402) {
-                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
+                // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
             }
             // Generic error message.
         }
@@ -235,25 +235,32 @@ var getMessages = function (nextPageToken, query, numberOfMessages) {
     return deferred.promise;
 }
 
-var getAuthTokens = function (customerId) {
+var getCustomerPreferences = function (customerId) {
     var deferred = Q.defer();
     dynamodb.get({
-        "TableName": AUTH_TABLE_NAME,
+        "TableName": GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES_TABLE_NAME,
         Key: {
             "CID": customerId
         }
-    }, function (err, tokens) {
+    }, function (err, preferences) {
         if (err) {
+            console.log('Error while fetching customer preferences for: ' + customerId + '. ' + util.inspect(err, { showHidden: true, depth: null }));
             deferred.reject(err);
         } else {
-            if(tokens && tokens.Item && !tokens.Item.LCD)
+            // If preferences doesn't exist create an empty object to populate with defaults.
+            if (isEmptyObject(preferences) || isEmptyObject(preferences.Item)) {
+                preferences = {};
+                preferences.Item = {};
+            }
+            // If just the LCD value doesn't exist, load the default value for it.
+            if(preferences && preferences.Item && !preferences.Item.LCD)
             {
                 // LastCheckedDate will be empty for new customers. We default it to 30 days ago.
                 var aMonthAgo = new Date();
                 aMonthAgo.setDate(new Date().getDate() - 30);
-                tokens.Item.LCD = Math.floor(aMonthAgo.getTime() / 1000);
+                preferences.Item.LCD = Math.floor(aMonthAgo.getTime() / 1000);
             }
-            deferred.resolve(tokens);
+            deferred.resolve(preferences);
         }
     });
     return deferred.promise;
@@ -266,7 +273,7 @@ var getAuthTokens = function (customerId) {
 var updateLCD = function (customerId) {
     var deferred = Q.defer();
     dynamodb.update({
-        "TableName": AUTH_TABLE_NAME,
+        "TableName": GMAIL_ON_ALEXA_CUSTOMER_PREFERENCES_TABLE_NAME,
         'Key': { "CID": customerId },
         'ExpressionAttributeValues': { ":last_checked_date": Math.floor(((new Date).getTime() / 1000)) },
         'ExpressionAttributeNames': { "#proxyName": "LCD" },
@@ -293,172 +300,154 @@ function getWelcomeResponse(session, response) {
     var repromptText = "Alexa shouldn't have said that.";
     var shouldEndSession = false;
 
-    var authTokensPromise = getAuthTokens(customerId);
-    authTokensPromise.then(
-        function (tokens) {
-            if (isEmptyObject(tokens)) {
-                console.log('No auth tokens found. New user. ');
+    var accessToken = session.user.accessToken;
+    var customerPreferencesPromise = getCustomerPreferences(customerId);
+    var LCD = '';
+    customerPreferencesPromise.then(
+        function (customerPreferences) {
+            console.log('Customer preferences were found in the data store: ' + JSON.stringify(customerPreferences, null, '  '));
+            LCD = customerPreferences.Item.LCD;
+        }, function (error) {
+            console.log('Failed to fetch customer preferences from database: ' + util.inspect(error, { showHidden: true, depth: null }));
+            speechText = "Sorry, I am unable to recall the last time I checked your Gmail. Please try later.";
 
-                var url = getAccountLinkingURL(customerId);
-                speechText = "Welcome to Gmail on Alexa. Please link your Gmail account using the link I added in your companion app. ";
-                cardTitle = "Welcome to Gmail on Alexa. Click the link to associate your Gmail account with Alexa. ";
-                cardOutput = url;
+            response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
+        })
+        .then(
+        function () {
+            oauth2Client.setCredentials({ access_token: accessToken });
+            sessionAttributes = persistAccessTokenInCache(sessionAttributes, accessToken);
+            var query = ALL_UNREAD_MESSAGES_QUERY + ' after:' + LCD;/*'1450385000';*/
 
-                response.tellWithCard({speech: speechText, type: AlexaSkill.speechOutputType.SSML}, {type: AlexaSkill.cardOutputType.SIMPLE, cardTitle: cardTitle, cardOutput: cardOutput});
-            }
-            else {
-                console.log('Auth tokens were found in the data store: ' + JSON.stringify(tokens, null, '  '));
-                oauth2Client.setCredentials({ refresh_token: tokens.Item.REFRESH_TOKEN });
-                sessionAttributes = persistRefreshTokenInCache(sessionAttributes, tokens.Item.REFRESH_TOKEN);
-                var query = ALL_UNREAD_MESSAGES_QUERY + ' after:' + tokens.Item.LCD;/*'1450385000';*/
-
-                var newMessagesPromise = getMessages(undefined, query, NEW_MESSAGES_PROMPT_THRESHOLD + 1);
-                newMessagesPromise.then(
-                        function (messagesResponse) {
-                            var numberOfMessages = 0;
-                            if (messagesResponse && messagesResponse.messages) {
-                                numberOfMessages = messagesResponse.messages.length;
-                            }
-
-                            if (numberOfMessages > 0) {
-                                speechText = 'Your new' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' since the last time I checked. ';
-                                cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' since the last time I checked your messages at '
-                                + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + '.';
-                                console.log('You have ' + util.inspect(messagesResponse.messages, { showHidden: true, depth: null }) + ' new messages since the last time I checked at ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS"));
-
-                                var deliverMessagesPromise = deliverMessages(messagesResponse);
-                                deliverMessagesPromise.then(
-                                    function (responseStrings) {
-                                        speechText += responseStrings.speechText ? responseStrings.speechText : '';
-                                        repromptText = responseStrings.repromptText ? responseStrings.repromptText : '';
-                                        shouldEndSession = responseStrings.terminateSession;
-
-                                        sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
-                                    }
-                                    );
-                                return deliverMessagesPromise;
-                            } else {
-                                query = ALL_UNREAD_MESSAGES_QUERY;
-                                var allUnreadMessagesPromise = getMessages(undefined, query, UNREAD_MESSAGES_PROMPT_THRESHOLD + 1);
-                                allUnreadMessagesPromise.then(
-                                    function (messagesResponse) {
-                                        numberOfMessages = 0;
-                                        if (messagesResponse && messagesResponse.messages) {
-                                            numberOfMessages = messagesResponse.messages.length;
-                                        }
-
-                                        if (numberOfMessages > 0) {
-                                            speechText = 'You have no new messages since the last time I checked. However there are ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' in your account. Do you want me to start reading' +  (numberOfMessages === 1 ? (' it ') : ' them ') + '?';
-                                            repromptText = 'Although there aren\'t any new messages since the last time I checked at ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM TT") + ' on ' + dateFormat((new Date(tokens.Item.LCD * 1000)), "mmmm dS") + ', there are ' +
-                                                (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' in your account in total. Do you want me to start reading?';
-                                            cardOutput = 'I did not find any new messages since the last time I checked your messages at '
-                                                            + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + ' but found ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
-                                                            ' unread' + (numberOfMessages === 1 ? (' message') : ' messages') + ' in total in your account';
-
-                                            // The above call is just to get the count of new messages. If the user wants us to
-                                            // read the messages, we want to start from beginning and so setting nextPageToen to zero.
-                                            // Optimizatin possible by using the results of the above calls to fetch messages.
-                                            messagesResponse.nextPageToken = '0';
-                                            sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
-                                        }
-                                        else {
-                                            speechText = 'There are no new messages since the last time I checked. In fact, there are no unread messages at all in your account. Awesome! You achieved inbox zero.';
-                                            cardOutput = "There were no new messages since the last time I checked at "
-                                            + dateFormat((new Date(tokens.Item.LCD * 1000)), "h:MM:ss TT, mmmm dS") + "." +
-                                            " In fact, there were no unread messages at all in your account. Awesome! You achieved inbox zero.";
-                                            shouldEndSession = true;
-                                        }
-                                    });
-
-                                    return allUnreadMessagesPromise;
-                            }
-                        },
-                        function (error) {
-                            console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
-                            if (error.code == 400 || error.code == 403) {
-                                var accountLinkingUrl = getAccountLinkingURL(customerId);
-                                speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
-                                cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
-                                "Use this link to grant me access to your Gmail account\n" +
-                                accountLinkingUrl;
-                                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-                            }
-                            if (error.code == 402) {
-                                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                            }
-                            // Generic error message.
-                        }
-                    )
-                    .then(
-                    function () {
-                        // Whether or not to update LCD
-                        if (query === ALL_UNREAD_MESSAGES_QUERY) {
-                            return Q(false);
-                        }
-                        else {
-                            return Q(true);
-                        }
-                    },
-                    function (error) {
-                        console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
-                        if (error.code == 400 || error.code == 403) {
-                            var accountLinkingUrl = getAccountLinkingURL(customerId);
-                            speechText = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.";
-                            cardOutput = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again.\n" +
-                                            "Use this link.\n" +
-                                            accountLinkingUrl;
-                            response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-                        }
-                        if (error.code == 402) {
-                            // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-                        }
-                        // Generic error message.
+            var newMessagesPromise = getMessages(undefined, query, NEW_MESSAGES_PROMPT_THRESHOLD + 1);
+            newMessagesPromise.then(
+                function (messagesResponse) {
+                    var numberOfMessages = 0;
+                    if (messagesResponse && messagesResponse.messages) {
+                        numberOfMessages = messagesResponse.messages.length;
                     }
-                    )
-                    .then(
-                        function (updateLCDNeeded) {
-                            if (updateLCDNeeded === true)
-                            {
-                                console.log("Updating LCD...");
-                                return updateLCD(customerId);
+
+                    if (numberOfMessages > 0) {
+                        speechText = 'Your new' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' since the last time I checked. ';
+                        cardOutput = "I found " + (numberOfMessages > NEW_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + NEW_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' new' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' since the last time I checked your messages at '
+                            + dateFormat((new Date(LCD * 1000)), "h:MM:ss TT, mmmm dS") + '.';
+                        console.log('You have ' + util.inspect(messagesResponse.messages, { showHidden: true, depth: null }) + ' new messages since the last time I checked at ' + dateFormat((new Date(LCD * 1000)), "h:MM:ss TT, mmmm dS"));
+
+                        var deliverMessagesPromise = deliverMessages(messagesResponse);
+                        deliverMessagesPromise.then(
+                            function (responseStrings) {
+                                speechText += responseStrings.speechText ? responseStrings.speechText : '';
+                                repromptText = responseStrings.repromptText ? responseStrings.repromptText : '';
+                                shouldEndSession = responseStrings.terminateSession;
+
+                                sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
                             }
-                            else
-                            {
-                                console.log("Skipped LCD update.");
-                                return Q(undefined);
-                            }
-                        }
-                    )
-                    .then(
-                        function () {
-                            // Return the response irrespective of whether or not the last_checked_date update succeeded.
-                            if (!shouldEndSession) {
-                                response.askWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-                            } else {
-                                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-                            }
-                        },
-                        function (err) {
-                            console.log('LCD update failures shouldn\'t get propagated and so we shouldn\'t have ever reached here. Error: ' + util.inspect(err, { showHidden: true, depth: null }));
-                            // Generic error message.
-                        }
-                    );
-            }
-        },
-        function (error) {
-            console.log('Failed to fetch tokens from database and so cannot proceed: ' + util.inspect(error, { showHidden: true, depth: null }));
-            if (error.code == 400 || error.code == 403) {
-                var accountLinkingUrl = getAccountLinkingURL(customerId);
-                speechText = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.";
-                cardOutput = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again.\n" +
-                "Use this link.\n" +
-                accountLinkingUrl;
-                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
-            }
-            if (error.code == 402) {
-                // This could be because the tokens expired. Need to figure out how to save fresh access token in database.
-            }
-            // Generic error message.
+                        );
+                        return deliverMessagesPromise;
+                    } else {
+                        query = ALL_UNREAD_MESSAGES_QUERY;
+                        var allUnreadMessagesPromise = getMessages(undefined, query, UNREAD_MESSAGES_PROMPT_THRESHOLD + 1);
+                        allUnreadMessagesPromise.then(
+                            function (messagesResponse) {
+                                numberOfMessages = 0;
+                                if (messagesResponse && messagesResponse.messages) {
+                                    numberOfMessages = messagesResponse.messages.length;
+                                }
+
+                                if (numberOfMessages > 0) {
+                                    speechText = 'You have no new messages since the last time I checked. However there are ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' in your account. Do you want me to start reading' + (numberOfMessages === 1 ? (' it ') : ' them ') + '?';
+                                    repromptText = 'Although there aren\'t any new messages since the last time I checked at ' + dateFormat((new Date(LCD * 1000)), "h:MM TT") + ' on ' + dateFormat((new Date(LCD * 1000)), "mmmm dS") + ', there are ' +
+                                        (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) + ' unread' + (numberOfMessages === 1 ? (' message ') : ' messages ') + ' in your account in total. Do you want me to start reading?';
+                                    cardOutput = 'I did not find any new messages since the last time I checked your messages at '
+                                        + dateFormat((new Date(LCD * 1000)), "h:MM:ss TT, mmmm dS") + ' but found ' + (numberOfMessages > UNREAD_MESSAGES_PROMPT_THRESHOLD ? ('more than ' + UNREAD_MESSAGES_PROMPT_THRESHOLD) : numberOfMessages) +
+                                        ' unread' + (numberOfMessages === 1 ? (' message') : ' messages') + ' in total in your account';
+
+                                    // The above call is just to get the count of new messages. If the user wants us to
+                                    // read the messages, we want to start from beginning and so setting nextPageToen to zero.
+                                    // Optimizatin possible by using the results of the above calls to fetch messages.
+                                    messagesResponse.nextPageToken = '0';
+                                    sessionAttributes = persistMessagesInCache(sessionAttributes, messagesResponse, query);
+                                }
+                                else {
+                                    speechText = 'There are no new messages since the last time I checked. In fact, there are no unread messages at all in your account. Awesome! You achieved inbox zero.';
+                                    cardOutput = "There were no new messages since the last time I checked at "
+                                        + dateFormat((new Date(LCD * 1000)), "h:MM:ss TT, mmmm dS") + "." +
+                                        " In fact, there were no unread messages at all in your account. Awesome! You achieved inbox zero.";
+                                    shouldEndSession = true;
+                                }
+                            });
+
+                        return allUnreadMessagesPromise;
+                    }
+                },
+                function (error) {
+                    console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+                    if (error.code == 400 || error.code == 403) {
+                        var accountLinkingUrl = getAccountLinkingURL(customerId);
+                        speechText = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account. I put a link in the companion app if you wish to give me access to your Gmail account.";
+                        cardOutput = "Sorry, am not able to access your Gmail. You might have revoked my access to your Gmail account.\n" +
+                            "Use this link to grant me access to your Gmail account\n" +
+                            accountLinkingUrl;
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    }
+                    if (error.code == 402) {
+                        // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
+                    }
+                    // Generic error message.
+                }
+            )
+                .then(
+                function () {
+                    // Whether or not to update LCD
+                    if (query === ALL_UNREAD_MESSAGES_QUERY) {
+                        return Q(false);
+                    }
+                    else {
+                        return Q(true);
+                    }
+                },
+                function (error) {
+                    console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
+                    if (error.code == 400 || error.code == 403) {
+                        var accountLinkingUrl = getAccountLinkingURL(customerId);
+                        speechText = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again. I put a link on the companion app.";
+                        cardOutput = "Sorry, looks like I lost access to your Gmail account. It might help if you grant me access to your Gmail account again.\n" +
+                            "Use this link.\n" +
+                            accountLinkingUrl;
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    }
+                    if (error.code == 402) {
+                        // This could be because the access tokens expired. Need to figure out how to save fresh access token in database.
+                    }
+                    // Generic error message.
+                }
+                )
+                .then(
+                function (updateLCDNeeded) {
+                    if (updateLCDNeeded === true) {
+                        console.log("Updating LCD...");
+                        return updateLCD(customerId);
+                    }
+                    else {
+                        console.log("Skipped LCD update.");
+                        return Q(undefined);
+                    }
+                }
+                )
+                .then(
+                function () {
+                    // Return the response irrespective of whether or not the last_checked_date update succeeded.
+                    if (!shouldEndSession) {
+                        response.askWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { speech: repromptText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    } else {
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.SSML }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                    }
+                },
+                function (err) {
+                    console.log('LCD update failures shouldn\'t get propagated and so we shouldn\'t have ever reached here. Error: ' + util.inspect(err, { showHidden: true, depth: null }));
+                    // Generic error message.
+                }
+                )
         }
         );
 }
@@ -473,13 +462,13 @@ function isEmptyObject(obj) {
     return true;
 }
 
-function persistRefreshTokenInCache(sessionAttributes, refreshToken) {
+function persistAccessTokenInCache(sessionAttributes, accessToken) {
         if(sessionAttributes) {
-        sessionAttributes.refreshToken = refreshToken;
+        sessionAttributes.accessToken = accessToken;
         return sessionAttributes;
     }
     return {
-        refreshToken: refreshToken
+        accessToken: accessToken
     };
 }
 
