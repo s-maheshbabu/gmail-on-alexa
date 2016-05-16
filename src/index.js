@@ -71,7 +71,7 @@ GmailOnAlexa.prototype.intentHandlers = {
         exitSkill(response);
     },
 
-// If user says help amidst a message reading session, we should continue reading messages after help message.
+    // TODO: If user says help amidst a message reading session, we should continue reading messages after help message.
     "AMAZON.HelpIntent": function (intent, session, response) {
         var helpMessage = 'I can read new messages on your Gmail account, newest first. I remember the last time you asked me to check your email and will ' +
                         'only read the messages you received since. You can also ask me to read all of your unread email in which case I will read all the unread ' +
