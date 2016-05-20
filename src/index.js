@@ -127,9 +127,8 @@ function continueReadingMoreMessages(session, response) {
         function (err) {
             console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
             if (error.code == 401) {
-                speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
-                cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
-                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
             }
 
             speechText = "Sorry, I am unable access your Gmail account. Please try later.";
@@ -377,9 +376,8 @@ function getWelcomeResponse(session, response) {
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                     if (error.code == 401) {
-                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
-                        cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
-                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
                     speechText = "Sorry, I am unable access your Gmail account. Please try later.";
@@ -399,9 +397,8 @@ function getWelcomeResponse(session, response) {
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                     if (error.code == 401) {
-                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill using the companion app.";
-                        cardOutput = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please try disabling and then re-enabling the skill.";
-                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { cardTitle: cardTitle, cardOutput: cardOutput });
+                        speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
                     speechText = "Sorry, I am unable access your Gmail account. Please try later.";
