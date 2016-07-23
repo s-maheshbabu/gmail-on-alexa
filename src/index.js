@@ -73,15 +73,24 @@ GmailOnAlexa.prototype.intentHandlers = {
 
     // TODO: If user says help amidst a message reading session, we should continue reading messages after help message.
     "AMAZON.HelpIntent": function (intent, session, response) {
-        var helpMessage = 'I can read new messages on your Gmail account, newest first. I remember the last time you asked me to check your email and will ' +
-                        'only read the messages you received since. You can also ask me to read all of your unread email in which case I will read all the unread ' +
-                        'messages in your inbox irrespective of when you received them';
+        var helpMessage = 'I can read new messages on your email account, newest first. I remember the last time you asked me to check your email and will ' +
+                        'only read the messages you received since. If there are no new unread messages, I can also read all of your unread messages irrespective ' +
+                        'of when you received them. I just added different ways you can ask me to check your email in the companion app. ' +
+                        'So, if you want me to check your inbox, just ask me to.';
+        var helpMessageCard = 'I can read new messages on your email account, newest first. I remember the last time you asked me to check your email and will ' +
+                'only read the messages you received since. If there are no new unread messages, I can also read all of your unread messages irrespective ' +
+                'of when you received them. Here are a few ways you can ask me to check your email.\n' +
+                '* check my inbox\n' +
+                '* check if I have new mail\n' +
+                '* read my latest messages\n';
 
         var speechOutput = {
             speech: helpMessage,
             type: AlexaSkill.speechOutputType.PLAIN_TEXT
         };
-        response.tellWithCard(speechOutput, {cardTitle: "Gmail Skill Help", cardOutput: helpMessage});
+        response.askWithCard(speechOutput,
+                            { speech: 'Say something like check my inbox if you want me to read your email', type: AlexaSkill.speechOutputType.PLAIN_TEXT },
+                            { cardTitle: "Email Digest Skill Help", cardOutput: helpMessageCard });
     }
 };
 
