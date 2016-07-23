@@ -136,11 +136,11 @@ function continueReadingMoreMessages(session, response) {
         function (err) {
             console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
             if (error.code == 401) {
-                speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please use the card I put in the companion app and link your accounts.";
                 response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
             }
 
-            speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+            speechText = "Sorry, I am unable to access your Gmail account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
             response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
         }
         );
@@ -303,6 +303,19 @@ function getWelcomeResponse(session, response) {
     var shouldEndSession = false;
 
     var accessToken = session.user.accessToken;
+    /*
+    We wouldn't have an access token if the user never linked their skill (it is possible that they just enabled the skill but
+    didn't link the accounts). This is different from an expired / revoked access and so needs to be handled separately.
+    In this case we need to prompt them to link their account.
+    */
+    if (isEmptyObject(accessToken))
+    {
+        console.log('Did not get an access token from Alexa. The user probably never linked their accounts.');
+
+        speechText = "Sorry, am not able to access your email. Looks like you did not link your accounts. Please use the card I put in the companion app and link your accounts.";
+        response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
+    }
+
     var customerPreferencesPromise = getCustomerPreferences(customerId);
     var LCD = '';
     customerPreferencesPromise.then(
@@ -385,11 +398,11 @@ function getWelcomeResponse(session, response) {
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                     if (error.code == 401) {
-                        speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please use the card I put in the companion app and link your accounts.";
                         response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
-                    speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+                    speechText = "Sorry, I am unable to access your Gmail account. Please try later.";
                     response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
             )
@@ -406,11 +419,11 @@ function getWelcomeResponse(session, response) {
                 function (error) {
                     console.log('Failed to fetch new messages for the user: ' + util.inspect(error, { showHidden: true, depth: null }));
                     if (error.code == 401) {
-                        speechText = "Sorry, am not able to access your Gmail. I either never had access or it was revoked. Please try granting access using the link I put in the companion app.";
+                        speechText = "Sorry, am not able to access your Gmail. My access to your account was probably revoked. Please use the card I put in the companion app and link your accounts.";
                         response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
-                    speechText = "Sorry, I am unable access your Gmail account. Please try later.";
+                    speechText = "Sorry, I am unable to access your Gmail account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
                     response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
                 )
