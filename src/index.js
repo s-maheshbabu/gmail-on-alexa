@@ -51,7 +51,7 @@ GmailOnAlexa.prototype.eventHandlers.onLaunch = function(launchRequest, session,
 
 
 GmailOnAlexa.prototype.intentHandlers = {
-    "GmailIntent": function (intent, session, response) {
+    "EmailIntent": function (intent, session, response) {
         getWelcomeResponse(session, response);
     },
 
@@ -140,7 +140,7 @@ function continueReadingMoreMessages(session, response) {
                 response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
             }
 
-            speechText = "Sorry, I am unable to access your Gmail account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
+            speechText = "Sorry, I am unable to access your email account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
             response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
         }
         );
@@ -296,8 +296,8 @@ function getWelcomeResponse(session, response) {
     var customerId = session.user.userId;
     // If we wanted to initialize the session to have some attributes we could add those here.
     var sessionAttributes = session.attributes;
-    var cardTitle = "Welcome to Gmail on Alexa. ";
-    var cardOutput = "Welcome to Gmail on Alexa. ";
+    var cardTitle = "Welcome to Email Preview on Alexa. ";
+    var cardOutput = "Welcome to Email Preview on Alexa. ";
     var speechText = "Alexa shouldn't have said that.";
     var repromptText = "Alexa shouldn't have said that.";
     var shouldEndSession = false;
@@ -324,7 +324,7 @@ function getWelcomeResponse(session, response) {
             LCD = customerPreferences.Item.LCD;
         }, function (error) {
             console.log('Failed to fetch customer preferences from database: ' + util.inspect(error, { showHidden: true, depth: null }));
-            speechText = "Sorry, I am unable to recall the last time I checked your Gmail. Please try later.";
+            speechText = "Sorry, I am unable to recall the last time I checked your email. Please try later.";
 
             response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
         })
@@ -402,7 +402,7 @@ function getWelcomeResponse(session, response) {
                         response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
-                    speechText = "Sorry, I am unable to access your Gmail account. Please try later.";
+                    speechText = "Sorry, I am unable to access your email account. Please try later.";
                     response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
             )
@@ -423,7 +423,7 @@ function getWelcomeResponse(session, response) {
                         response.tellWithCard({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT }, { type: AlexaSkill.cardOutputType.LINK_ACCOUNT });
                     }
 
-                    speechText = "Sorry, I am unable to access your Gmail account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
+                    speechText = "Sorry, I am unable to access your email account. Please try later." + util.inspect(error, { showHidden: true, depth: null });
                     response.tell({ speech: speechText, type: AlexaSkill.speechOutputType.PLAIN_TEXT });
                 }
                 )
