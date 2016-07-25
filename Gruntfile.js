@@ -5,7 +5,6 @@ grunt.initConfig({
     lambda_invoke: {
         default: {
             options: {
-                // file_name: 'link-gmail-account-with-alexa.js'
                 file_name: 'src/index.js',
                 event: 'testdata/yesIntent.json'
             }
@@ -14,7 +13,6 @@ grunt.initConfig({
     lambda_deploy: {
         default: {
             arn: 'arn:aws:lambda:us-east-1:837603326872:function:gmail-on-alexa'
-            // arn: 'arn:aws:lambda:us-east-1:837603326872:function:Test_GMailOnAlexa_Test'
         }
     },
     lambda_package: {
